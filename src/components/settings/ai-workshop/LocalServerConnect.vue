@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import AppInput from '@/components/ui/input/AppInput.vue'
+
 import AppButton from '@/components/ui/button/AppButton.vue'
+import AppInput from '@/components/ui/input/AppInput.vue'
 import AppCombobox from '@/components/ui/select/AppCombobox.vue'
+
 import SetupScreen from './SetupScreen.vue'
 const { initialState = 'idle', proxy = false } = defineProps<{
   initialState?: 'idle' | 'unreachable' | 'discovered' | 'manual'

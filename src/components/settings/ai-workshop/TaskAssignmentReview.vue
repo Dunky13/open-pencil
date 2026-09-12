@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import TaskAssignmentField from './TaskAssignmentField.vue'
-import SetupActions from './SetupActions.vue'
+
 import AppButton from '@/components/ui/button/AppButton.vue'
+
 import type { TaskProposal } from './recommendations'
+import SetupActions from './SetupActions.vue'
+import TaskAssignmentField from './TaskAssignmentField.vue'
 
 const {
   proposals,

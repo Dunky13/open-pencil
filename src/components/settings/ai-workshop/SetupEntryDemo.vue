@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useTimeoutFn } from '@vueuse/core'
+import { ref } from 'vue'
+
 import AppButton from '@/components/ui/button/AppButton.vue'
 import AppSelect from '@/components/ui/select/AppSelect.vue'
+
+import AgentConnect from './AgentConnect.vue'
+import AIConnectionsPanel from './AIConnectionsPanel.vue'
+import AISetupWizard from './AISetupWizard.vue'
+import GatewayConnect from './GatewayConnect.vue'
+import LocalServerConnect from './LocalServerConnect.vue'
+import OpenRouterConnect from './OpenRouterConnect.vue'
+import type { SetupAnswers } from './recommendations'
 import SetupScreen from './SetupScreen.vue'
 import WelcomeScreen from './WelcomeScreen.vue'
-import AISetupWizard from './AISetupWizard.vue'
-import OpenRouterConnect from './OpenRouterConnect.vue'
-import AgentConnect from './AgentConnect.vue'
-import LocalServerConnect from './LocalServerConnect.vue'
-import GatewayConnect from './GatewayConnect.vue'
-import type { SetupAnswers } from './recommendations'
-import AIConnectionsPanel from './AIConnectionsPanel.vue'
 
 const { returning = false, authenticationOutcome = 'success' } = defineProps<{
   returning?: boolean

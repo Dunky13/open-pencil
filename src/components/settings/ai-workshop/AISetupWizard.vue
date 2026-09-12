@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
 import { tv } from 'tailwind-variants'
+import { computed, reactive, ref } from 'vue'
+
 import AppButton from '@/components/ui/button/AppButton.vue'
 import theme from '@/theme/ai-setup/wizard'
-import SetupChoice from './SetupChoice.vue'
-import SetupActions from './SetupActions.vue'
-import TaskAssignmentReview from './TaskAssignmentReview.vue'
+
 import { accounts, goals, proposeSetup, type SetupAnswers } from './recommendations'
+import SetupActions from './SetupActions.vue'
+import SetupChoice from './SetupChoice.vue'
+import TaskAssignmentReview from './TaskAssignmentReview.vue'
 const {
   initialAnswers,
   initialStep = 0,

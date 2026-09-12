@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+
 import AppButton from '@/components/ui/button/AppButton.vue'
 import AppInput from '@/components/ui/input/AppInput.vue'
+
 import SetupScreen from './SetupScreen.vue'
 const emit = defineEmits<{ connected: []; back: [] }>()
 const key = ref('')

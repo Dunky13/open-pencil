@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import { tv } from 'tailwind-variants'
-import theme from '@/theme/ai-setup/agent-status'
+import { computed, ref } from 'vue'
+
 import AppButton from '@/components/ui/button/AppButton.vue'
+import theme from '@/theme/ai-setup/agent-status'
+
 import SetupScreen from './SetupScreen.vue'
 type State = 'missing' | 'sign-in' | 'starting' | 'ready' | 'disconnected' | 'browser'
 const { initialState = 'sign-in', agent = 'Codex' } = defineProps<{

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { tv } from 'tailwind-variants'
+
 import theme from '@/theme/ai-setup/screen'
 const { heading, description } = defineProps<{ heading: string; description: string }>()
 const styles = tv(theme)()

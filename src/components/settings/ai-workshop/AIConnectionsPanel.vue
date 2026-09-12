@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+
 import AppButton from '@/components/ui/button/AppButton.vue'
-import SetupSection from './SetupSection.vue'
-import SetupActions from './SetupActions.vue'
+
 import ConnectionItem from './ConnectionItem.vue'
-import TaskAssignmentField from './TaskAssignmentField.vue'
 import { goals, routes } from './recommendations'
+import SetupActions from './SetupActions.vue'
+import SetupSection from './SetupSection.vue'
+import TaskAssignmentField from './TaskAssignmentField.vue'
 const {
   connected = ['Codex', 'OpenRouter'],
   assignments = { 'Create and edit designs': 'codex-agent' }
