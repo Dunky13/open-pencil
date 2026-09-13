@@ -71,6 +71,20 @@ export {
   type DesignJSXPropertyDefinition
 } from './schema'
 export { transformDesignJSXExpression } from './transform'
+export { recordJSXPreview } from './streaming/picture'
+export { stageJSXPreview, type StagedJSXPreview } from './streaming/stage'
+export {
+  resolveRenderPlacement,
+  finishRenderPlacement,
+  type RenderPlacementInput,
+  type RenderPlacement
+} from './placement'
+export {
+  createStreamingJSXParser,
+  type JSXPreviewNode,
+  type JSXPreviewPending,
+  type JSXPreviewSnapshot
+} from './streaming'
 
 import jsxReference from '#core/tools/prompts/jsx-reference.md?raw'
 

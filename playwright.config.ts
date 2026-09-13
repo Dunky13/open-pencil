@@ -1,4 +1,10 @@
 import { defineConfig } from '@playwright/test'
+import * as v from 'valibot'
+
+const port = v.parse(
+  v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(65535)),
+  Number(process.env.PLAYWRIGHT_PORT ?? 1420)
+)
 
 export default defineConfig({
   testDir: './tests',
@@ -15,7 +21,7 @@ export default defineConfig({
     }
   },
   use: {
-    baseURL: 'http://localhost:1420',
+    baseURL: `http://localhost:${port}`,
     testIdAttribute: 'data-test-id',
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
@@ -50,8 +56,8 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: 'bun run dev',
-    port: 1420,
+    command: `bun run dev --port ${port}`,
+    port,
     reuseExistingServer: true
   }
 })

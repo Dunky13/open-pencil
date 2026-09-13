@@ -74,7 +74,7 @@ App dialogs compose the Reka-backed components under `src/components/ui/dialog/`
 
 ## Git worktrees and development servers
 
-Prefer `dev:portless`, especially in worktrees. It assigns branch-specific app and `mcp.open-pencil` sibling URLs with isolated runtime discovery. Use fixed-port `dev` only for Playwright, Tauri, and Dev Container flows.
+Prefer `dev:portless`, especially in worktrees. It assigns branch-specific app and `mcp.open-pencil` sibling URLs with isolated runtime discovery. Use fixed-port `dev` only for Playwright, Tauri, and Dev Container flows. For concurrent Playwright runs, set `PLAYWRIGHT_PORT` (for example `PLAYWRIGHT_PORT=1422 bunx playwright test`); the shared config uses it for both the app URL and dev server.
 
 ## Releases & CI
 
