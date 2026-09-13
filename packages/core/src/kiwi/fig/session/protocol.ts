@@ -1,7 +1,7 @@
 import type { FigSessionCheckpoint } from '@open-pencil/fig'
 import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
 
-import type { FigImportOptions } from '#core/kiwi/fig/import'
+import type { ParseFigFileOptions } from '#core/io/formats/fig/read'
 import type { SerializedSceneGraph } from '#core/kiwi/fig/parse/transfer'
 import type { FigPopulationDelta } from '#core/kiwi/fig/population/delta'
 
@@ -9,7 +9,7 @@ export interface FigSessionOpenRequest {
   type: 'open'
   originalBuffer: ArrayBuffer
   archiveBuffer: ArrayBuffer
-  options?: FigImportOptions
+  options?: Pick<ParseFigFileOptions, 'populate'>
   port: MessagePort
 }
 

@@ -34,6 +34,7 @@ test('binding swap ignores known removed-child paint claims without discarding u
       type: 'INSTANCE',
       parentIndex: { guid: guid(5), position: '!' },
       componentPropRefs: [{ defID: guid(90), componentPropNodeField: 'OVERRIDDEN_SYMBOL_ID' }],
+      derivedSymbolData: [{ guidPath: { guids: [guid(2)] }, size: { x: 16, y: 16 } }],
       symbolData: {
         symbolID: guid(1),
         symbolOverrides: [{ guidPath: { guids: [guid(2)] }, fillPaints: [] }]
@@ -43,6 +44,7 @@ test('binding swap ignores known removed-child paint claims without discarding u
     {
       guid: guid(8),
       type: 'INSTANCE',
+      derivedSymbolData: [{ guidPath: { guids: [guid(6), guid(2)] }, size: { x: 24, y: 24 } }],
       symbolData: { symbolID: guid(5) },
       componentPropAssignments: [{ defID: guid(90), value: { guidValue: guid(3) } }]
     }
@@ -60,8 +62,34 @@ test('binding swap ignores known removed-child paint claims without discarding u
     symbolOverrides: [{ guidPath: { guids: [guid(999)] }, fillPaints: [] }]
   } as NodeChange['symbolData']
   expect(() => interpretInstance(malformed, '1:8')).toThrow('found 0')
-  const swapped = interpretInstance(changes, '1:8').children[0]
+  const swapped = interpretInstance(changes, '1:8', { derivedBounds: true }).children[0]
+  expect(swapped.children[0].derivedSize).toBeUndefined()
+  expect(
+    interpretInstance(changes, '1:7', { derivedBounds: true }).children[0].children[0].derivedSize
+  ).toEqual({ x: 16, y: 16 })
+  malformedSource.symbolData = structuredClone(original.symbolData)
+  malformedSource.derivedSymbolData = [
+    { guidPath: { guids: [guid(999)] }, size: { x: 16, y: 16 } }
+  ] as NodeChange['derivedSymbolData']
+  expect(() => interpretInstance(malformed, '1:8', { derivedBounds: true })).toThrow('found 0')
+  const ambiguousSource = structuredClone(changes)
+  ambiguousSource.push({
+    guid: guid(9),
+    type: 'VECTOR',
+    overrideKey: guid(2),
+    parentIndex: { guid: guid(1), position: '"' }
+  } as NodeChange)
+  expect(() => interpretInstance(ambiguousSource, '1:8', { derivedBounds: true })).toThrow(
+    'found 0'
+  )
   expect(swapped.mainComponentId).toBe('1:3')
+  const malformedOuter = structuredClone(changes)
+  const outer = malformedOuter.find((node) => node.guid?.localID === 8)
+  if (!outer) throw new Error('Missing outer instance')
+  outer.derivedSymbolData = [
+    { guidPath: { guids: [guid(6), guid(999)] }, size: { x: 24, y: 24 } }
+  ] as NodeChange['derivedSymbolData']
+  expect(() => interpretInstance(malformedOuter, '1:8', { derivedBounds: true })).toThrow('found 0')
   expect(swapped.children[0].sourceId).toBe('1:4')
   expect(swapped.children[0].properties.fillPaints?.[0]?.color?.b).toBe(1)
   expect(interpretInstance(changes, '1:7').children[0].children[0].properties.fillPaints).toEqual(

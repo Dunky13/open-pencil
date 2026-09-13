@@ -1,6 +1,9 @@
 import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
+import { componentDependencies } from '../document/component/dependencies'
+import { linkComponentPropertyValues } from '../document/component/values'
+import { createResourceResolver } from '../document/resource-reference'
 import {
   createOccurrenceInterpreter,
   type InstanceOccurrence,
@@ -13,7 +16,15 @@ import {
   type MaterializedComponentOccurrence
 } from './source-children'
 
-/** Build only the component definitions required by an interpreted occurrence. */
+export interface MaterializedComponentClosure extends ReadonlyMap<
+  string,
+  MaterializedComponentOccurrence
+> {
+  /** Unavailable preferred choices remain external keys, not required source dependencies. */
+  readonly externalPreferredKeys: ReadonlySet<string>
+}
+
+/** Build effective components and inactive property dependencies needed for later edits. */
 export function materializeComponentClosure(
   graph: SceneGraph,
   parentId: string,
@@ -21,12 +32,20 @@ export function materializeComponentClosure(
   root: InstanceOccurrence,
   blobs: Uint8Array[] = [],
   options: InterpretInstanceOptions = {}
-): ReadonlyMap<string, MaterializedComponentOccurrence> {
+): MaterializedComponentClosure {
   const interpreter = createOccurrenceInterpreter(changes)
+  const existingNodeIds = new Set(graph.nodes.keys())
+  const resolveReference = createResourceResolver(changes)
+  const externalPreferredKeys = new Set<string>()
+  const propertyDependencies = new Set<string>()
   const components = new Map<string, MaterializedComponentOccurrence>()
   const ids = new Map<string, string>()
   const pending = new Set<string>()
   const visit = (occurrence: InstanceOccurrence): void => {
+    for (const dependency of componentDependencies(occurrence.properties, resolveReference, (key) =>
+      externalPreferredKeys.add(key)
+    ))
+      propertyDependencies.add(dependency)
     if (occurrence.mainComponentId !== null) ensure(occurrence.mainComponentId)
     for (const child of occurrence.children) visit(child)
   }
@@ -50,5 +69,9 @@ export function materializeComponentClosure(
     pending.delete(id)
   }
   visit(root)
-  return components
+  // A property default can point back to its own definition without forming a cyclic
+  // occurrence tree. Drain these edges after effective expansion, not on its call stack.
+  for (const dependency of propertyDependencies) ensure(dependency)
+  linkComponentPropertyValues(graph, ids, existingNodeIds)
+  return Object.assign(components, { externalPreferredKeys })
 }

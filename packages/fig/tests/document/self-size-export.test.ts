@@ -5,7 +5,7 @@ import type { SymbolData } from '#fig/instance-overrides/types'
 import { exportFigFile } from '@open-pencil/core/io'
 import { initCodec } from '@open-pencil/core/kiwi'
 import { parseFigBuffer } from '@open-pencil/fig'
-import { SceneGraph, setInstanceOverride } from '@open-pencil/scene-graph'
+import { SceneGraph, setInstanceOverride, rescaleNodeTree } from '@open-pencil/scene-graph'
 
 test('serializes self size claims against the instance main component', async () => {
   await initCodec()
@@ -16,8 +16,8 @@ test('serializes self size claims against the instance main component', async ()
   })
   const instance = graph.createInstance(component.id, graph.getPages()[0].id)
   if (!instance) throw new Error('Missing instance')
-  instance.source.fig.uniformScaleFactor = 0.5
-  graph.updateNode(instance.id, { width: 16, height: 16 })
+  rescaleNodeTree(graph, instance.id, 0.5)
+  graph.updateNode(instance.id, { width: 16, height: 16, paddingLeft: 10 })
   setInstanceOverride(instance.instanceOverrides, instance.id, instance.id, 'width', 16)
   setInstanceOverride(instance.instanceOverrides, instance.id, instance.id, 'paddingLeft', 10)
   setInstanceOverride(instance.instanceOverrides, instance.id, instance.id, 'height', 16)
@@ -31,6 +31,6 @@ test('serializes self size claims against the instance main component', async ()
   expect(symbol.symbolOverrides).toContainEqual({
     guidPath: { guids: [symbol.symbolID] },
     size: { x: 32, y: 32 },
-    stackHorizontalPadding: 10
+    stackHorizontalPadding: 20
   })
 })

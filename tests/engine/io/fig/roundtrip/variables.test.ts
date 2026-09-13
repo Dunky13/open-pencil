@@ -10,7 +10,7 @@ import {
 } from '@open-pencil/core'
 
 import { expectDefined } from '#tests/helpers/assert'
-import { parseFixture } from '#tests/helpers/fig-fixtures'
+import { parseFixture } from '#tests/helpers/fig/fixtures'
 import { runsHeavyTests } from '#tests/helpers/test-utils'
 
 setDefaultTimeout(60_000)

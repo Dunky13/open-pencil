@@ -1,7 +1,7 @@
 import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { guidToString } from '@open-pencil/kiwi/fig/guid'
 
-/** Exact versioned lookup; ambiguous unversioned keys are rejected. */
+/** Exact versioned lookup; explicit unversioned records win, otherwise ambiguous keys reject. */
 export function createResourceResolver(resources: readonly NodeChange[]) {
   const keys = new Map<string, Map<string, string>>()
   for (const resource of resources) {
@@ -21,6 +21,7 @@ export function createResourceResolver(resources: readonly NodeChange[]) {
     if (!asset) return undefined
     const versions = keys.get(asset.key)
     if (asset.version) return versions?.get(asset.version)
+    if (versions?.has('')) return versions.get('')
     return versions?.size === 1 ? versions.values().next().value : undefined
   }
 }

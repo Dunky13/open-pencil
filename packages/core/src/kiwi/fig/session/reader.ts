@@ -3,7 +3,7 @@ import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
 
 import { buildFigPopulationDelta, installFigMutationJournal } from '#core/kiwi/fig/population/delta'
 
-/** Format-neutral worker transport adapter for the replacement reader session. */
+/** Format-neutral worker transport adapter for the FIG reader session. */
 export function openReaderSession(
   bytes: ArrayBuffer,
   populate: 'all' | 'first-page' | 'none' = 'all'
@@ -32,6 +32,7 @@ export function openReaderSession(
     if (page) session.loadPage(page.sourceId)
   }
   return {
+    session,
     checkpoint: () => session.checkpoint(),
     graph: session.graph,
     pages,

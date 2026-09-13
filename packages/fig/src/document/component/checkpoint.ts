@@ -35,6 +35,15 @@ export function restoreComponentCheckpoint(
 ): MaterializedComponentOccurrence {
   const root = graph.getNode(checkpoint.rootId)
   if (!root) throw new Error(`Missing resumed component ${checkpoint.rootId}`)
+  const currentlyMaterialized = new Map<string, SceneNode>()
+  const visitCurrent = (node: SceneNode, path: string[]): void => {
+    currentlyMaterialized.set(path.join('/'), node)
+    for (const child of graph.getChildren(node.id)) {
+      const source = child.source.id
+      if (source) visitCurrent(child, [...path, source])
+    }
+  }
+  visitCurrent(root, [])
   const nodes = new Map<InstanceOccurrence, SceneNode>()
   for (const entry of checkpoint.nodes) {
     let target = occurrence
@@ -43,14 +52,16 @@ export function restoreComponentCheckpoint(
       if (matches.length !== 1) throw new Error(`Invalid checkpoint source path ${id}`)
       target = matches[0]
     }
-    const node = graph.getNode(entry.nodeId)
-    if (!node || nodes.has(target) || target.mainComponentId !== entry.mainComponentId) {
+    const node = graph.getNode(entry.nodeId) ?? currentlyMaterialized.get(entry.path.join('/'))
+    if (!node) continue
+    if (nodes.has(target) || target.mainComponentId !== entry.mainComponentId) {
       throw new Error(`Invalid checkpoint occurrence ${entry.nodeId}`)
     }
     nodes.set(target, node)
   }
   const validate = (target: InstanceOccurrence): void => {
-    if (!nodes.has(target)) throw new Error('Incomplete component checkpoint')
+    // Deleted loaded descendants are deliberate live structure, not checkpoint corruption.
+    if (!nodes.has(target)) return
     for (const child of target.children) validate(child)
   }
   validate(occurrence)

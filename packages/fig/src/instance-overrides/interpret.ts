@@ -2,6 +2,8 @@ import type { GUID, NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { guidToString } from '@open-pencil/kiwi/fig/guid'
 import type { Vector } from '@open-pencil/scene-graph'
 
+import { mergeVariableConsumptionMaps } from '../node-change/variable-bindings'
+import { remapDetachedAssignments } from './detached-assignments'
 import {
   fieldsBoundByAssignments,
   bindSourceProperties,
@@ -10,6 +12,8 @@ import {
   type BoundPropertyClaim,
   type PropertyBinding
 } from './interpret-bindings'
+import { applyInstanceLayoutScale } from './layout-scale'
+import { applyPlacedConstraints } from './resize'
 import { invalidateInheritedTextData } from './text-provenance'
 import type {
   ComponentPropAssignment,
@@ -17,6 +21,7 @@ import type {
   SymbolData,
   SymbolOverride
 } from './types'
+import { declareVariableBindingUnits, declareSourceVariableBindingUnits } from './variable-bindings'
 
 function readOverrideKey(value: unknown): GUID | undefined {
   if (!value || typeof value !== 'object' || !('sessionID' in value) || !('localID' in value))
@@ -47,6 +52,10 @@ export interface InstanceOccurrence {
   propertyClaims: InstancePropertyClaim[]
   bindingClaims: BoundPropertyClaim[]
   derivedSize?: Vector
+  /** Cumulative scale for unresolved layout-distance variable values. */
+  layoutScale?: number
+  /** Per-field declaration-space multipliers, composed as owners expand. */
+  variableBindingScales?: Record<string, number>
   /** Whether this expansion supplies a name rather than only inheriting it. */
   hasOwnName: boolean
   defaultInstanceName?: string
@@ -148,6 +157,18 @@ export function resolveOccurrencePath(
   return target
 }
 
+function isRetiredPath(
+  error: unknown,
+  path: readonly GUID[],
+  isRemovedTarget: (path: readonly GUID[]) => boolean
+): boolean {
+  return (
+    error instanceof InstancePathError &&
+    error.diagnostic.reason === 'missing-target' &&
+    isRemovedTarget(path)
+  )
+}
+
 function applyPropertyOverrides(
   overrides: readonly SymbolOverride[],
   targetFor: (path: readonly GUID[]) => InstanceOccurrence,
@@ -171,27 +192,39 @@ function applyPropertyOverrides(
     try {
       target = targetFor(guidPath.guids)
     } catch (error) {
-      if (
-        error instanceof InstancePathError &&
-        error.diagnostic.reason === 'missing-target' &&
-        isRemovedTarget(guidPath.guids)
-      )
-        continue
+      if (isRetiredPath(error, guidPath.guids, isRemovedTarget)) continue
       if (!(error instanceof InstancePathError) || !options.onUnresolvedProperty) throw error
       options.onUnresolvedProperty(error.diagnostic)
       continue
     }
+    declareVariableBindingUnits(target, props as NodeChange)
     invalidateInheritedTextData(target.properties, props)
-    Object.assign(target.properties, structuredClone(props))
+    Object.assign(
+      target.properties,
+      structuredClone(props),
+      mergeVariableConsumptionMaps(target.properties, props as NodeChange)
+    )
     record(target, props, guidPath.guids)
   }
+}
+
+function applyDerivedVectorGeometry(
+  entry: DerivedSymbolOverride,
+  target: InstanceOccurrence
+): void {
+  // These are Kiwi geometry records with blob indexes, not SceneGraph geometry arrays.
+  const { fillGeometry, strokeGeometry, vectorData } = entry
+  if (fillGeometry) target.properties.fillGeometry = structuredClone(fillGeometry)
+  if (strokeGeometry) target.properties.strokeGeometry = structuredClone(strokeGeometry)
+  if (vectorData) target.properties.vectorData = structuredClone(vectorData)
 }
 
 function applyDerivedBounds(
   source: NodeChange,
   root: InstanceOccurrence,
   targetFor: (path: readonly GUID[]) => InstanceOccurrence,
-  options: InterpretInstanceOptions
+  options: InterpretInstanceOptions,
+  isRemovedTarget: (path: readonly GUID[]) => boolean
 ): void {
   if (!options.derivedBounds) return
   const derived = source.derivedSymbolData as DerivedSymbolOverride[] | undefined
@@ -202,7 +235,9 @@ function applyDerivedBounds(
     try {
       target = targetFor(path)
     } catch (error) {
-      // Derived records can retain stale paths just like explicit property records.
+      // A binding replacement retires geometry of uniquely identified source descendants.
+      // Unknown paths and ambiguous source correspondence remain errors.
+      if (isRetiredPath(error, path, isRemovedTarget)) continue
       if (!(error instanceof InstancePathError) || !options.onUnresolvedProperty) throw error
       options.onUnresolvedProperty(error.diagnostic)
       continue
@@ -220,10 +255,7 @@ function applyDerivedBounds(
       target.derivedSize = structuredClone(entry.size)
     }
     if (entry.transform) target.properties.transform = structuredClone(entry.transform)
-    const { fillGeometry, strokeGeometry, vectorData } = entry
-    if (fillGeometry) target.properties.fillGeometry = structuredClone(fillGeometry)
-    if (strokeGeometry) target.properties.strokeGeometry = structuredClone(strokeGeometry)
-    if (vectorData) target.properties.vectorData = structuredClone(vectorData)
+    applyDerivedVectorGeometry(entry, target)
   }
 }
 
@@ -261,6 +293,8 @@ function replaceOccurrence(target: InstanceOccurrence, replacement: InstanceOccu
   target.children = replacement.children
   target.propertyClaims = replacement.propertyClaims
   target.bindingClaims = replacement.bindingClaims
+  target.layoutScale = replacement.layoutScale
+  target.variableBindingScales = replacement.variableBindingScales
 }
 
 function samePath(a: readonly GUID[], b: readonly GUID[]): boolean {
@@ -301,6 +335,10 @@ function rootAssignments(source: NodeChange, componentKey?: GUID): ComponentProp
   })
 }
 
+interface DetachedSymbolReference {
+  guid?: GUID
+}
+
 function applyStructuralOverrides(
   overrides: readonly SymbolOverride[],
   targetFor: (path: readonly GUID[]) => InstanceOccurrence,
@@ -315,7 +353,11 @@ function applyStructuralOverrides(
   ) => void,
   adopt: (target: InstanceOccurrence, replacement: InstanceOccurrence) => void,
   retireDescendants: (target: InstanceOccurrence) => void,
-  options: InterpretInstanceOptions
+  options: InterpretInstanceOptions,
+  remapMissingAssignments: (
+    path: readonly GUID[],
+    assignments: readonly ComponentPropAssignment[]
+  ) => boolean
 ): void {
   const structural = groupedStructuralOverrides(overrides)
   for (const override of structural) {
@@ -325,13 +367,14 @@ function applyStructuralOverrides(
     try {
       target = targetFor(path)
     } catch (error) {
-      if (
-        !(error instanceof InstancePathError) ||
-        error.diagnostic.reason !== 'missing-target' ||
-        override.overriddenSymbolID ||
-        !options.onUnresolvedAssignment
-      )
+      if (!(error instanceof InstancePathError) || error.diagnostic.reason !== 'missing-target')
         throw error
+      if (
+        !override.overriddenSymbolID &&
+        remapMissingAssignments(path, override.componentPropAssignments ?? [])
+      )
+        continue
+      if (override.overriddenSymbolID || !options.onUnresolvedAssignment) throw error
       options.onUnresolvedAssignment({
         ...error.diagnostic,
         assignments: structuredClone(override.componentPropAssignments ?? [])
@@ -365,8 +408,7 @@ function bindingContext(
 
 /**
  * Interpret source component expansion and explicit symbol overrides without SceneGraph.
- * This slice interprets direct component bindings and explicit symbol overrides.
- * Variables and derived layout remain unsupported.
+ * Variables and saved derived geometry are applied by focused stages in this evaluation.
  */
 export function interpretInstance(
   changes: readonly NodeChange[],
@@ -438,10 +480,6 @@ function interpretRoot(
       retireDescendants(child)
     }
   }
-  const propertyPatches = new WeakMap<InstanceOccurrence, Record<string, unknown>>()
-  const recordPatch = (target: InstanceOccurrence, props: Record<string, unknown>): void => {
-    propertyPatches.set(target, { ...propertyPatches.get(target), ...structuredClone(props) })
-  }
   const restorePatches = (
     previous: InstanceOccurrence,
     next: InstanceOccurrence,
@@ -449,21 +487,17 @@ function interpretRoot(
     descendBindings = true
   ): void => {
     const boundFields = fieldsBoundByAssignments(next.properties, assignments)
+    const retained: Record<string, unknown> = {}
     for (const claim of claimsByTarget.get(previous) ?? []) {
       claim.properties = Object.fromEntries(
         Object.entries(claim.properties).filter(([field]) => !boundFields.has(field))
       )
       indexClaim(next, claim)
+      // Claims are indexed in application order; later fields supersede earlier ones.
+      Object.assign(retained, claim.properties)
     }
-    const patch = propertyPatches.get(previous)
-    if (patch) {
-      const retained = Object.fromEntries(
-        Object.entries(patch).filter(([field]) => !boundFields.has(field))
-      )
-      invalidateInheritedTextData(next.properties, retained)
-      Object.assign(next.properties, structuredClone(retained))
-      recordPatch(next, retained)
-    }
+    invalidateInheritedTextData(next.properties, retained)
+    Object.assign(next.properties, structuredClone(retained))
     for (const child of previous.children) {
       const matches = next.children.filter((candidate) => candidate.sourceId === child.sourceId)
       if (matches.length === 1)
@@ -585,9 +619,14 @@ function interpretRoot(
         ...sourceRootIdentity(raw),
         ...inheritedOccurrenceProperties(base),
         bindingClaims,
+        variableBindingScales: { ...base?.variableBindingScales },
         hasOwnName: inheritsInstanceName(symbolId, base),
         overrideKey: readOverrideKey(source.overrideKey),
-        properties: { ...base?.properties, ...source },
+        properties: {
+          ...base?.properties,
+          ...source,
+          ...mergeVariableConsumptionMaps(base?.properties ?? {}, source)
+        },
         children:
           base?.children ??
           (children.get(id) ?? []).map((child) => {
@@ -595,6 +634,7 @@ function interpretRoot(
             return expand(guidToString(child.guid), childBindings)
           })
       }
+      declareSourceVariableBindingUnits(occurrence, source)
       retainEffectiveAssignments(source, occurrence, [
         ...ownAssignments,
         ...rootAssignments(source, componentKey),
@@ -643,15 +683,35 @@ function interpretRoot(
         reconfigure,
         adopt,
         retireDescendants,
-        options
+        options,
+        (path, assignments) => remapDetachedAssignments(sources, occurrence, path, assignments)
       )
+      const isRemovedTarget = (path: readonly GUID[]): boolean => {
+        let owner = occurrence
+        for (const [index, segment] of path.entries()) {
+          const original = owner.sourceComponentId
+          if (
+            original &&
+            owner.mainComponentId !== guidToString(original) &&
+            resolvesInSourceComponent(original, path.slice(index))
+          )
+            return true
+          if (index === 0 && isRootGuid(owner, segment)) continue
+          try {
+            owner = findSegment(owner, segment)
+          } catch (error) {
+            if (!(error instanceof SegmentError)) throw error
+            return false
+          }
+        }
+        return false
+      }
       applyPropertyOverrides(
         overrides,
         targetFor,
         options,
         (target, props, path) => {
           if ('name' in props) target.hasOwnName = true
-          recordPatch(target, props)
           const claim: InstancePropertyClaim = {
             declaredBy: id,
             path: structuredClone(path),
@@ -660,17 +720,12 @@ function interpretRoot(
           occurrence.propertyClaims.push(claim)
           indexClaim(target, claim)
         },
-        (path) => {
-          const original = raw.symbolData?.symbolID
-          return (
-            !!original &&
-            bindingChangesComponent(raw, source) &&
-            resolvesInSourceComponent(original, path)
-          )
-        }
+        isRemovedTarget
       )
+      applyInstanceLayoutScale(occurrence, source)
+      applyPlacedConstraints(occurrence, base, source)
       restorePlacedSize(source, occurrence)
-      applyDerivedBounds(source, occurrence, targetFor, options)
+      applyDerivedBounds(source, occurrence, targetFor, options, isRemovedTarget)
       recipes.set(occurrence, (next) => expand(id, bindings, [...assignments, ...next]))
       return occurrence
     } finally {

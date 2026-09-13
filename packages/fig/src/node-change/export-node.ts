@@ -6,17 +6,17 @@ import type {
   SceneGraph,
   SceneNode
 } from '@open-pencil/scene-graph'
-import {
-  DEFAULT_STROKE_MITER_LIMIT,
-  forEachInstanceOverride,
-  getInstanceOverride
-} from '@open-pencil/scene-graph'
+import { DEFAULT_STROKE_MITER_LIMIT, forEachInstanceOverride } from '@open-pencil/scene-graph'
 import type { Color, GUID, Matrix, Vector } from '@open-pencil/scene-graph/primitives'
 
+import { SCALAR_OVERRIDE_FIELDS } from '../instance-overrides/field-contract'
+import { LAYOUT_DISTANCE_FIELDS } from '../instance-overrides/layout-scale'
+import type { DerivedSymbolOverride } from '../instance-overrides/types'
 import { effectiveFigmaRawNodeFields, effectiveFigmaSourcePayload } from '../source-metadata'
 /* eslint-disable max-lines */
 import { bytesToHex } from './bytes'
 import { exportCanvasGuides } from './canvas-guides'
+import { instanceExportAddress, snapshotInstanceGeometry } from './instance-geometry'
 import {
   applyExportSettingsPluginData,
   applyLibrarySourcePluginData,
@@ -26,6 +26,7 @@ import {
   serializePluginRelaunchData,
   upsertPluginData
 } from './plugin-data'
+import { overrideVariableBindingEntry, mergeVariableConsumptionMaps } from './variable-bindings'
 
 export type KiwiNodeChange = NodeChange & Record<string, unknown>
 
@@ -121,6 +122,11 @@ function applyColorVariableBinding(
   if (!variableId) return paint
   return {
     ...paint,
+    colorVar: {
+      dataType: 'ALIAS',
+      resolvedDataType: 'COLOR',
+      value: { alias: { guid: context.varIdToGuid?.get(variableId) ?? stringToGuid(variableId) } }
+    },
     colorVariableBinding: {
       variableID: context.varIdToGuid?.get(variableId) ?? stringToGuid(variableId)
     }
@@ -443,25 +449,21 @@ function exportedTextStyleReference(context: SceneNodeToKiwiContext, id: string)
     }
     context.styleReferences = references
   }
+  const mapped = context.nodeIdToGuid?.get(id)
+  if (mapped) return { guid: mapped }
   return context.styleReferences.get(id) ?? { guid: stringToGuid(id) }
 }
 
 function unscaledRootSize(instance: SceneNode, target: SceneNode): Vector {
-  const scale = target.id === instance.id ? (instance.source.fig.uniformScaleFactor ?? 1) : 1
+  const scale = instance.componentScale
   if (!Number.isFinite(scale) || scale <= 0) throw new Error('Invalid instance uniform scale')
   return { x: target.width / scale, y: target.height / scale }
 }
 
-const PADDING_OVERRIDE_FIELDS: Record<string, string> = {
-  paddingLeft: 'stackHorizontalPadding',
-  paddingRight: 'stackPaddingRight',
-  paddingTop: 'stackVerticalPadding',
-  paddingBottom: 'stackPaddingBottom'
-}
-
 function paddingOverride(
   field: string,
-  value: unknown
+  value: unknown,
+  instance: SceneNode
 ): Record<string, number | string> | undefined {
   if (field === 'textAutoResize' && typeof value === 'string') return { textAutoResize: value }
   if (
@@ -474,9 +476,13 @@ function paddingOverride(
   if (field === 'layoutAlignSelf' && typeof value === 'string')
     return { stackChildAlignSelf: value }
   if (field === 'layoutGrow' && typeof value === 'number') return { stackChildPrimaryGrow: value }
-  const rawField = PADDING_OVERRIDE_FIELDS[field]
+  const rawField = Object.hasOwn(LAYOUT_DISTANCE_FIELDS, field)
+    ? LAYOUT_DISTANCE_FIELDS[field as keyof typeof LAYOUT_DISTANCE_FIELDS]
+    : undefined
   if (!rawField || typeof value !== 'number') return undefined
-  return { [rawField]: value }
+  const scale = instance.componentScale
+  if (!Number.isFinite(scale) || scale <= 0) throw new Error('Invalid instance uniform scale')
+  return { [rawField]: value / scale }
 }
 
 function exportedSwapOverride(
@@ -490,51 +496,36 @@ function exportedSwapOverride(
   return component ? { guidPath: { guids: path }, overriddenSymbolID: component } : undefined
 }
 
+function instanceGuidResolver(context: SceneNodeToKiwiContext, counter: { value: number }) {
+  return (id: string): GUID | undefined => {
+    const source = context.graph.getNode(id)
+    return (
+      (source?.overrideKey ? parseGuidOrNull(source.overrideKey) : null) ??
+      getOrCreateNodeGuid(context, id, counter)
+    )
+  }
+}
+
 function serializeRuntimePropertyOverrides(
   context: SceneNodeToKiwiContext,
   instance: SceneNode,
   localIdCounter: { value: number }
 ): KiwiSymbolOverridePayload[] {
   const result: KiwiSymbolOverridePayload[] = []
-  const address = (owner: SceneNode, target: SceneNode): GUID[] | undefined => {
-    if (target.id === owner.id && owner.componentId) {
-      const source = context.graph.getNode(owner.componentId)
-      const component =
-        (source?.overrideKey ? parseGuidOrNull(source.overrideKey) : null) ??
-        getOrCreateNodeGuid(context, owner.componentId, localIdCounter)
-      return component ? [component] : undefined
-    }
-    const boundaries: SceneNode[] = []
-    let parent = target.parentId ? context.graph.getNode(target.parentId) : undefined
-    while (parent && parent.id !== owner.id) {
-      if (parent.type === 'INSTANCE') boundaries.unshift(parent)
-      parent = parent.parentId ? context.graph.getNode(parent.parentId) : undefined
-    }
-    if (!parent) return undefined
-    const path: GUID[] = []
-    let scope = owner
-    for (const node of [...boundaries, target]) {
-      const mapped = getInstanceOverride(
-        scope.instanceOverrides,
-        scope.id,
-        node.id,
-        'sourceComponentId'
-      )
-      const sourceId = typeof mapped === 'string' ? mapped : node.componentId
-      if (!sourceId) return undefined
-      const source = context.graph.getNode(sourceId)
-      const guid = source?.overrideKey ? parseGuidOrNull(source.overrideKey) : null
-      const resolved = guid ?? getOrCreateNodeGuid(context, sourceId, localIdCounter)
-      if (!resolved) return undefined
-      path.push(resolved)
-      scope = node
-    }
-    return path
+  const resolveGuid = instanceGuidResolver(context, localIdCounter)
+  const resolveTarget = (owner: SceneNode, nodeId: string) => {
+    const targetId = nodeId || owner.id
+    const target = context.graph.getNode(targetId)
+    if (!target || (target.id !== instance.id && !isDescendantOf(context, targetId, instance.id)))
+      return undefined
+    const path = instanceExportAddress(context.graph, instance, target, resolveGuid)
+    return path ? { target, path } : undefined
   }
   const collect = (owner: SceneNode): void => {
     forEachInstanceOverride(owner.instanceOverrides, (nodeId, field, value) => {
       if (
         ![
+          ...Object.keys(SCALAR_OVERRIDE_FIELDS),
           'text',
           'visible',
           'componentId',
@@ -548,16 +539,31 @@ function serializeRuntimePropertyOverrides(
           'primaryAxisSizing',
           'counterAxisSizing',
           'layoutAlignSelf',
-          ...Object.keys(PADDING_OVERRIDE_FIELDS)
-        ].includes(field)
+          ...Object.keys(LAYOUT_DISTANCE_FIELDS)
+        ].includes(field) &&
+        !field.startsWith('boundVariables/')
       )
         return
-      const targetId = nodeId || owner.id
-      const target = context.graph.getNode(targetId)
-      if (!target || (target.id !== instance.id && !isDescendantOf(context, targetId, instance.id)))
+      const resolved = resolveTarget(owner, nodeId)
+      if (!resolved) return
+      const { target, path } = resolved
+      if (field.startsWith('boundVariables/')) {
+        const bindingField = field.slice('boundVariables/'.length)
+        const entry = overrideVariableBindingEntry(
+          bindingField,
+          target,
+          instance,
+          context.graph,
+          context.varIdToGuid
+        )
+        if (entry)
+          result.push({ guidPath: { guids: path }, parameterConsumptionMap: { entries: [entry] } })
         return
-      const path = address(instance, target)
-      if (!path) return
+      }
+      if (field in SCALAR_OVERRIDE_FIELDS) {
+        result.push({ guidPath: { guids: path }, [field]: target[field as keyof SceneNode] })
+        return
+      }
       if (field === 'fills' || field === 'strokes') {
         result.push({
           guidPath: { guids: path },
@@ -567,7 +573,7 @@ function serializeRuntimePropertyOverrides(
         })
         return
       }
-      const padding = paddingOverride(field, value)
+      const padding = paddingOverride(field, target[field as keyof SceneNode], instance)
       if (padding) {
         result.push({ guidPath: { guids: path }, ...padding })
         return
@@ -626,7 +632,12 @@ function mergeOverrides(
       }
     }
     if (existingIndex < 0) symbolOverrides.push(override)
-    else symbolOverrides[existingIndex] = { ...symbolOverrides[existingIndex], ...override }
+    else
+      symbolOverrides[existingIndex] = {
+        ...symbolOverrides[existingIndex],
+        ...override,
+        ...mergeVariableConsumptionMaps(symbolOverrides[existingIndex], override)
+      }
   }
 }
 
@@ -729,7 +740,15 @@ function applyRawFigmaNodeFields(
     // The scene model may lose this distinction for instance children whose
     // strokes are resolved from component overrides. Prefer the raw data.
     if ((key === 'fillPaints' || key === 'strokePaints') && node.source.id) {
-      nc[key] = materialized[key]
+      const paints = materialized[key]
+      nc[key] = paints?.map((paint, index) =>
+        applyColorVariableBinding(
+          context,
+          node,
+          paint,
+          `${key === 'fillPaints' ? 'fills' : 'strokes'}/${index}/color`
+        )
+      )
       continue
     }
     if (
@@ -806,8 +825,10 @@ function applyInstancePayload(
       serializeRuntimePropertyOverrides(context, node, localIdCounter)
     )
     if (symbolOverrides.length > 0) symbolData.symbolOverrides = symbolOverrides
-    if (node.source.fig.uniformScaleFactor != null) {
-      symbolData.uniformScaleFactor = node.source.fig.uniformScaleFactor
+    if (!Number.isFinite(node.componentScale) || node.componentScale <= 0)
+      throw new Error('Invalid instance uniform scale')
+    if (node.componentScale !== 1 || node.source.fig.uniformScaleFactor != null) {
+      symbolData.uniformScaleFactor = node.componentScale
     }
     nc.symbolData = symbolData as KiwiNodeChange['symbolData']
   }
@@ -825,17 +846,22 @@ function applyInstancePayload(
       }
     )
   }
-  if (node.source.fig.derivedSymbolData.length > 0) {
-    nc.derivedSymbolData = materializeFigmaPayload(
-      node.source.fig.derivedSymbolData,
-      context.blobs,
-      {
-        blobIndexByHex: context.blobIndexByHex,
-        includePaintVariables: true,
-        includeVariableMaps: true
-      }
-    )
-  }
+  const retainedGeometry = materializeFigmaPayload(
+    node.source.fig.derivedSymbolData,
+    context.blobs,
+    {
+      blobIndexByHex: context.blobIndexByHex,
+      includePaintVariables: true,
+      includeVariableMaps: true
+    }
+  ) as DerivedSymbolOverride[]
+  nc.derivedSymbolData = snapshotInstanceGeometry(
+    context.graph,
+    node,
+    instanceGuidResolver(context, localIdCounter),
+    retainedGeometry,
+    (target) => ({ size: exportNodeSize(target), transform: exportNodeTransform(context, target) })
+  )
   if (node.source.fig.derivedSymbolDataLayoutVersion != null) {
     nc.derivedSymbolDataLayoutVersion = node.source.fig.derivedSymbolDataLayoutVersion
   }
@@ -1067,12 +1093,17 @@ function nodeForGeometryExport(node: SceneNode): SceneNode {
   }
 }
 
-function applySharedStyleProps(node: SceneNode, nc: KiwiNodeChange): void {
-  if (node.fillStyleId) nc.styleIdForFill = { guid: stringToGuid(node.fillStyleId) }
-  if (node.strokeStyleId) nc.styleIdForStrokeFill = { guid: stringToGuid(node.strokeStyleId) }
-  if (node.textStyleId) nc.styleIdForText = { guid: stringToGuid(node.textStyleId) }
-  if (node.effectStyleId) nc.styleIdForEffect = { guid: stringToGuid(node.effectStyleId) }
-  if (node.gridStyleId) nc.styleIdForGrid = { guid: stringToGuid(node.gridStyleId) }
+function applySharedStyleProps(
+  context: SceneNodeToKiwiContext,
+  node: SceneNode,
+  nc: KiwiNodeChange
+): void {
+  const reference = (id: string) => ({ guid: context.nodeIdToGuid?.get(id) ?? stringToGuid(id) })
+  if (node.fillStyleId) nc.styleIdForFill = reference(node.fillStyleId)
+  if (node.strokeStyleId) nc.styleIdForStrokeFill = reference(node.strokeStyleId)
+  if (node.textStyleId) nc.styleIdForText = reference(node.textStyleId)
+  if (node.effectStyleId) nc.styleIdForEffect = reference(node.effectStyleId)
+  if (node.gridStyleId) nc.styleIdForGrid = reference(node.gridStyleId)
   if (node.layoutGrids.length > 0) nc.layoutGrids = structuredClone(node.layoutGrids)
   if (node.guides.length > 0) nc.guides = exportCanvasGuides(node.guides)
 }
@@ -1128,7 +1159,7 @@ function applyNodeVisualProps(
   }
 
   if (node.type !== 'VECTOR') nc.frameMaskDisabled = !node.clipsContent
-  applySharedStyleProps(node, nc)
+  applySharedStyleProps(context, node, nc)
   if (node.horizontalConstraint !== 'MIN') nc.horizontalConstraint = node.horizontalConstraint
   if (node.verticalConstraint !== 'MIN') nc.verticalConstraint = node.verticalConstraint
   if (node.strokeCap !== 'NONE') nc.strokeCap = node.strokeCap

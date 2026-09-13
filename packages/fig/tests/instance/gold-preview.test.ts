@@ -59,7 +59,7 @@ test('Gold Preview input resolves badge visibility and distinct avatar swaps lik
   expect(
     named(frame, 'Trailing').children.some((node) => node.properties.name === 'chevron-down')
   ).toBe(true)
-  expect(diagnostics.length).toBeGreaterThan(0)
+  expect(diagnostics).toEqual([])
 
   const graph = new SceneGraph()
   const page = graph.getPages()[0]

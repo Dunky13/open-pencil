@@ -1,9 +1,18 @@
+import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { setInstanceOverride, type SceneGraph, type SceneNode } from '@open-pencil/scene-graph'
 import { createDefaultSourceMetadata } from '@open-pencil/scene-graph/node-defaults'
 
 import { nodeChangeToProps } from '../node-change'
+import { numericVariableBindingScales } from '../node-change/variable-bindings'
 import { resolveOccurrencePath, type InstanceOccurrence } from './interpret'
+import { LAYOUT_DISTANCE_FIELDS } from './layout-scale'
+import { recordScalarOverrideClaims } from './scalar-claims'
 import type { SymbolData } from './types'
+import {
+  recordVariableBindingClaims,
+  occurrenceAssignmentScales,
+  occurrenceScale
+} from './variable-bindings'
 
 function occurrenceMetadata(
   current: InstanceOccurrence,
@@ -91,6 +100,13 @@ export function materializeInstance(
     const metadata = occurrenceMetadata(current, converted)
     const propsWithIdentity = {
       ...props,
+      variableAssignmentScales: occurrenceAssignmentScales(current),
+      componentScale: occurrenceScale(current),
+      variableBindingScales: numericVariableBindingScales(
+        props.boundVariables ?? {},
+        current.layoutScale ?? 1,
+        current.variableBindingScales
+      ),
       componentId:
         current.mainComponentId === null
           ? (sourceChildren.get(current) ?? null)
@@ -144,6 +160,7 @@ function recordPropertyClaims(nodes: ReadonlyMap<InstanceOccurrence, SceneNode>)
       const targetOccurrence = resolveOccurrencePath(ownerOccurrence, claim.path)
       const target = nodes.get(targetOccurrence)
       if (!target) throw new Error('Unmaterialized property claim target')
+      recordScalarOverrideClaims(owner, target, claim.properties as NodeChange)
       for (const [rawField, field] of [
         ['fillPaints', 'fills'],
         ['strokePaints', 'strokes']
@@ -157,16 +174,14 @@ function recordPropertyClaims(nodes: ReadonlyMap<InstanceOccurrence, SceneNode>)
             structuredClone(target[field])
           )
       }
+      recordVariableBindingClaims(owner, target, claim.properties as NodeChange)
       if ('visible' in claim.properties) {
         setInstanceOverride(owner.instanceOverrides, owner.id, target.id, 'visible', target.visible)
       }
-      for (const [rawField, field] of [
-        ['stackHorizontalPadding', 'paddingLeft'],
-        ['stackPaddingRight', 'paddingRight'],
-        ['stackVerticalPadding', 'paddingTop'],
-        ['stackPaddingBottom', 'paddingBottom']
-      ] as const) {
-        if (rawField in claim.properties) {
+      for (const field of Object.keys(LAYOUT_DISTANCE_FIELDS) as Array<
+        keyof typeof LAYOUT_DISTANCE_FIELDS
+      >) {
+        if (LAYOUT_DISTANCE_FIELDS[field] in claim.properties) {
           setInstanceOverride(owner.instanceOverrides, owner.id, target.id, field, target[field])
         }
       }

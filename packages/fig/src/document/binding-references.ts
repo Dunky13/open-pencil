@@ -2,6 +2,8 @@ import type { GUID, NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { stringToGuid } from '@open-pencil/kiwi/fig/guid'
 
 import type { SymbolData, SymbolOverride } from '../instance-overrides/types'
+import { variableConsumptionEntries } from '../node-change/variable-bindings'
+import { visitVariableReferences } from '../node-change/variable-expression'
 import { normalizeComponentPropertyRecords } from './property-records'
 import { createResourceResolver } from './resource-reference'
 
@@ -51,8 +53,10 @@ export function resolveDocumentBindingReferences(
     }
     const visit = (node: NodeChange, path: readonly GUID[]): void => {
       normalizeComponentPropertyRecords(node)
-      for (const entry of node.variableConsumptionMap?.entries ?? []) {
-        normalize(entry.variableData?.value?.alias, entry.variableField ?? 'unknown', path)
+      for (const entry of variableConsumptionEntries(node)) {
+        visitVariableReferences(entry.variableData, (reference) =>
+          normalize(reference, entry.variableField ?? 'unknown', path)
+        )
       }
       for (const [field, paints] of [
         ['fillPaints', node.fillPaints],

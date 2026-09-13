@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test'
 
 import { SceneGraph, type SceneNode } from '@open-pencil/core'
 
-import { parseGoldPreviewFixture, VALID_NODE_TYPES } from '#tests/helpers/fig-fixtures'
+import { parseGoldPreviewFixture, VALID_NODE_TYPES } from '#tests/helpers/fig/fixtures'
 
 setDefaultTimeout(60_000)
 

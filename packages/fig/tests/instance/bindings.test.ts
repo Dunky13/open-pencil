@@ -133,6 +133,57 @@ test('retains an intermediate explicit descendant override when an outer binding
   expect(overridden.properties.opacity).toBe(0.8)
 })
 
+test('restores ordered claims field-wise without mutating source records or sibling occurrences', () => {
+  const changes = fixture()
+  withRootOverrides(changes, 30, [
+    { guidPath: { guids: [guid(22), guid(3)] }, opacity: 0.4, fontSize: 18 },
+    {
+      guidPath: { guids: [guid(22), guid(3)] },
+      opacity: 0.6,
+      textData: { characters: 'Intermediate' }
+    }
+  ])
+  changes.push(
+    { guid: guid(50), type: 'SYMBOL' },
+    {
+      guid: guid(51),
+      type: 'INSTANCE',
+      parentIndex: { guid: guid(50), position: '!' },
+      symbolData: { symbolID: guid(30) }
+    },
+    { guid: guid(52), type: 'INSTANCE', symbolData: { symbolID: guid(50) } }
+  )
+  withRootOverrides(changes, 52, [
+    {
+      guidPath: { guids: [guid(51), guid(22)] },
+      componentPropAssignments: [{ defID: guid(91), value: { textValue: 'Outer' } }]
+    }
+  ])
+  const source = structuredClone(changes)
+  const result = interpretInstance(changes, '1:52')
+  const owner = result.children[0]
+  const label = owner.children[1].children[0].children[0]
+  expect(label.properties).toMatchObject({
+    opacity: 0.6,
+    fontSize: 18,
+    textData: { characters: 'Outer' }
+  })
+  expect(owner.propertyClaims.map((claim) => claim.properties)).toEqual([
+    { opacity: 0.4, fontSize: 18 },
+    { opacity: 0.6 }
+  ])
+  expect(owner.children[0].children[0].children[0].properties.textData?.characters).toBe('Default')
+  label.properties.textData = { characters: 'Mutated result' }
+  owner.propertyClaims[0].properties.fontSize = 99
+  const independent = interpretInstance(changes, '1:30')
+  expect(independent.children[1].children[0].children[0].properties).toMatchObject({
+    opacity: 0.6,
+    fontSize: 18,
+    textData: { characters: 'Intermediate' }
+  })
+  expect(changes).toEqual(source)
+})
+
 test('retains intermediate-owner assignments when an outer owner configures another property', () => {
   const changes = fixture()
   withRootOverrides(changes, 30, [

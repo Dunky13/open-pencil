@@ -1,3 +1,5 @@
+export { isFigClipboardVisualType } from './node-classification'
+export { materializeFigFragment, type FragmentMaterializationOptions } from './document/fragment'
 export {
   materializeDocument,
   materializeFigArchive,

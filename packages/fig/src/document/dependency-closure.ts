@@ -3,6 +3,7 @@ import { guidToString } from '@open-pencil/kiwi/fig/guid'
 
 import { componentDependencies } from './component/dependencies'
 import { createResourceResolver } from './resource-reference'
+import { styleDependencies } from './style-dependencies'
 
 export interface SceneDependencyClosure {
   /** Live page trees plus explicitly referenced component trees. */
@@ -41,6 +42,7 @@ export function collectSceneDependencies(
     siblings.push(id)
     children.set(parent, siblings)
   }
+  const availableIds = new Set(sources.keys())
   const contentIds = new Set<string>()
   const ancestorIds = new Set<string>()
   const externalPreferredKeys = new Set<string>()
@@ -64,6 +66,7 @@ export function collectSceneDependencies(
     contentIds.add(id)
     pending.push(
       ...(children.get(id) ?? []),
+      ...styleDependencies(node, resolveReference, availableIds),
       ...componentDependencies(node, resolveReference, (key) => externalPreferredKeys.add(key))
     )
   }

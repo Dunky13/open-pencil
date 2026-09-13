@@ -16,7 +16,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "imports": {
-    "#fig/*": "./src/*.ts"
+    "#fig/*": "./src/*.ts",
+    "#fig-tests/*": "./tests/*.ts"
   },
   "exports": {
     ".": {

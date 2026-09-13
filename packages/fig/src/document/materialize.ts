@@ -5,6 +5,7 @@ import type { InstanceOccurrence, InterpretInstanceOptions } from '../instance-o
 import { reconcileLiveComponentEdits } from '../instance-overrides/live-component-edits'
 import { materializeInstance } from '../instance-overrides/materialize-instance'
 import {
+  reconcileOccurrenceStructure,
   linkInstanceSourceChildren,
   mapInstanceSourceChildren,
   type MaterializedComponentOccurrence
@@ -16,10 +17,11 @@ import {
   restoreComponentCheckpoint,
   type ComponentCheckpoint
 } from './component/checkpoint'
-import { assertComponentStructureCurrent } from './component/structure'
 import { linkComponentPropertyValues } from './component/values'
 import { applyDocumentLayoutBindings } from './layout-bindings'
 import { loadPageTransaction } from './load-transaction'
+import { applyDocumentMetadata } from './metadata'
+import { applyDocumentPaintBindings } from './paint-bindings'
 import { createArchiveDocumentReader, createDocumentReader } from './read'
 import { materializeVariableResources } from './variables'
 
@@ -122,7 +124,6 @@ export function createFigDocumentSession(
     pages: archive.reader.pages,
     loadPage(id: string): void {
       if (loaded.has(id)) return
-      assertComponentStructureCurrent(state.graph, state.components)
       const reader = archive.reader.selectPages(new Set([id]))
       loadPageTransaction(state, reader.dependencyClosure, () => {
         materializeReader(reader, archive.blobs, sessionOptions, state)
@@ -140,6 +141,7 @@ function createAssemblyState(
   options: DocumentAssemblyOptions
 ): AssemblyState {
   const graph = new SceneGraph()
+  applyDocumentMetadata(graph, reader.documentRecord)
   for (const [hash, bytes] of options.images ?? []) graph.images.set(hash, bytes.slice())
   materializeVariableResources(graph, reader.resources, options.onUnsupportedResource)
   for (const page of graph.getPages()) graph.deleteNode(page.id)
@@ -168,8 +170,12 @@ function materializeReader(
   const { graph, sources, components, savedSizeNodes, componentIds } =
     previous ?? createAssemblyState(reader, options)
   const existingNodeIds = new Set(graph.nodes.keys())
+  const layoutScales = new Map<string, number>()
   const rememberDerivedSizes = (nodes: ReadonlyMap<InstanceOccurrence, SceneNode>): void => {
-    for (const [occurrence, node] of nodes) if (occurrence.derivedSize) savedSizeNodes.add(node.id)
+    for (const [occurrence, node] of nodes) {
+      if (occurrence.derivedSize) savedSizeNodes.add(node.id)
+      if (occurrence.layoutScale !== undefined) layoutScales.set(node.id, occurrence.layoutScale)
+    }
   }
   const createShells = (occurrence: InstanceOccurrence, parentId: string): void => {
     if (occurrence.mainComponentId !== null) return
@@ -220,6 +226,7 @@ function materializeReader(
     if (!parentId) throw new Error(`Missing source container ${occurrence.sourceId}`)
     const ordered: string[] = []
     for (const child of occurrence.children) {
+      if (previous) reconcileOccurrenceStructure(child, graph, components)
       if (child.mainComponentId !== null && !sources.has(child.sourceId)) {
         const materialized = materializeInstance(
           graph,
@@ -231,7 +238,10 @@ function materializeReader(
         )
         rememberDerivedSizes(materialized.nodes)
         linkInstanceSourceChildren(child, materialized, components)
-        if (previous) reconcileLiveComponentEdits(graph, materialized)
+        if (previous) {
+          reconcileLiveComponentEdits(graph, materialized)
+          graph.syncInstances(materialized.root.componentId ?? '')
+        }
         sources.set(child.sourceId, materialized.root.id)
       } else if (child.mainComponentId === null && child.properties.type !== 'SYMBOL')
         populateInstances(child)
@@ -244,9 +254,23 @@ function materializeReader(
       parent.childIds = [...ordered, ...parent.childIds.filter((id) => !ordered.includes(id))]
   }
   for (const page of pages) populateInstances(page)
+  for (const node of graph.getAllNodes()) {
+    if (existingNodeIds.has(node.id)) continue
+    for (const field of [
+      'fillStyleId',
+      'strokeStyleId',
+      'textStyleId',
+      'effectStyleId',
+      'gridStyleId'
+    ] as const) {
+      const id = node[field]
+      if (id && sources.has(id)) node[field] = sources.get(id) ?? id
+    }
+  }
   linkComponentPropertyValues(graph, sources, existingNodeIds)
-  graph.preserveSourceMetadataDuring(() =>
-    applyDocumentLayoutBindings(graph, savedSizeNodes, existingNodeIds)
-  )
+  graph.preserveSourceMetadataDuring(() => {
+    applyDocumentLayoutBindings(graph, savedSizeNodes, existingNodeIds, layoutScales)
+    applyDocumentPaintBindings(graph, existingNodeIds)
+  })
   return { graph, sources, components, componentIds, savedSizeNodes }
 }

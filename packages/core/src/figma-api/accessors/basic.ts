@@ -1,4 +1,11 @@
-import { getNodeLocalMatrix, getWorldMatrix, type SceneNode } from '@open-pencil/scene-graph'
+import {
+  getNodeLocalMatrix,
+  getWorldMatrix,
+  TRANSFORM_FIELDS as NODE_TRANSFORM_FIELDS,
+  findInstanceAncestor,
+  rescaleNodeTree,
+  type SceneNode
+} from '@open-pencil/scene-graph'
 import type { Rect } from '@open-pencil/scene-graph/primitives'
 
 import { assertNodeEditable } from '#core/editor/capabilities'
@@ -11,10 +18,9 @@ import {
 } from '#core/figma-api/accessor-utils'
 import type { NodeProxyHost } from '#core/figma-api/proxy'
 import { computeAbsoluteRenderBounds } from '#core/figma-api/render-bounds'
-import { rescaleNodeTree } from '#core/figma-api/rescale'
 import type { FigmaTransform } from '#core/figma-api/types'
 
-const TRANSFORM_FIELDS = new Set(['x', 'y', 'rotation', 'flipX', 'flipY'])
+const TRANSFORM_FIELDS: ReadonlySet<string> = new Set(NODE_TRANSFORM_FIELDS)
 
 function assertEditable(target: ProxyThis, internals: NodeProxyInternals): void {
   assertNodeEditable(graph(target, internals), nodeId(target, internals))
@@ -156,7 +162,11 @@ export function installBasicNodeProxyAccessors(
     },
     rescale(this: ProxyThis, scale: number): void {
       assertEditable(this, internals)
-      rescaleNodeTree(graph(this, internals), nodeId(this, internals), scale)
+      const scene = graph(this, internals)
+      const node = raw(this, internals)
+      if (node.parentId && findInstanceAncestor(scene, node.parentId))
+        throw new Error('This property cannot be overridden in an instance: size')
+      rescaleNodeTree(scene, node.id, scale)
     }
   })
 }

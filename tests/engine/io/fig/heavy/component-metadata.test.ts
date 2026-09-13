@@ -1,16 +1,15 @@
 import { expect, setDefaultTimeout, test } from 'bun:test'
 
-import { parseFigBuffer } from '@open-pencil/fig'
-
-import { importNodeChanges } from '#core/kiwi'
+import { parseFigBuffer, materializeDocument } from '@open-pencil/fig'
 
 import { expectDefined } from '#tests/helpers/assert'
-import { readFixtureArrayBuffer } from '#tests/helpers/fig-fixtures'
+import { readFixtureArrayBuffer } from '#tests/helpers/fig/fixtures'
 import { heavy } from '#tests/helpers/test-utils'
 
 function importFixture(name: string) {
   const { nodeChanges, blobs, images } = parseFigBuffer(readFixtureArrayBuffer(name))
-  return importNodeChanges(nodeChanges, blobs, new Map(images))
+  return materializeDocument(nodeChanges, blobs, { images: new Map(images), derivedBounds: true })
+    .graph
 }
 
 setDefaultTimeout(30_000)

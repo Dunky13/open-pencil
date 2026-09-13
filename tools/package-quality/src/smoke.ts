@@ -253,7 +253,7 @@ try {
     tempDir
   )
   nodeEval(
-    "const { populateAndApplyOverrides } = await import('@open-pencil/fig/instance-overrides'); if (typeof populateAndApplyOverrides !== 'function') throw new Error('Fig instance override subpath failed')",
+    "const { interpretInstance } = await import('@open-pencil/fig/instance-overrides'); if (typeof interpretInstance !== 'function') throw new Error('Fig occurrence interpreter subpath failed')",
     tempDir
   )
   nodeEval(

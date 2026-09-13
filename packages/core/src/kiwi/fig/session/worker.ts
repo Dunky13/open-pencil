@@ -64,7 +64,10 @@ self.onmessage = (event: MessageEvent<FigSessionOpenRequest>) => {
   try {
     const opened = openReaderSession(request.originalBuffer, request.options?.populate)
     respond({ type: 'page-manifest', pages: opened.pages })
-    session = request.options?.populate === 'first-page' ? opened : undefined
+    session =
+      request.options?.populate === 'first-page' || request.options?.populate === 'none'
+        ? opened
+        : undefined
     respond({
       type: 'graph',
       graph: serializeSceneGraph(opened.graph),

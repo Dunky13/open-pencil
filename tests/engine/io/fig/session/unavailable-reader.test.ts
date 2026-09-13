@@ -7,7 +7,7 @@ import {
   releaseFigPopulationWorker
 } from '#core/kiwi/fig/population/client'
 
-test('replacement-reader pages fail explicitly after session invalidation', async () => {
+test('new live pages do not require unavailable reader recovery', async () => {
   const editor = createEditor()
   const page = editor.graph.addPage('Unloaded')
   const worker = {
@@ -16,12 +16,10 @@ test('replacement-reader pages fail explicitly after session invalidation', asyn
     onerror: null,
     onmessage: null
   } as Worker
-  registerFigPopulationWorker(editor.graph, worker, undefined, true)
+  registerFigPopulationWorker(editor.graph, worker)
   editor.graph.updateNode(editor.graph.rootId, { name: 'User edit' })
   try {
-    await expect(editor.preparePage(page.id)).rejects.toThrow(
-      'No replacement reader recovery state'
-    )
+    await expect(editor.preparePage(page.id)).resolves.toMatchObject({ pageId: page.id })
     expect(editor.graph.getChildren(page.id)).toEqual([])
   } finally {
     releaseFigPopulationWorker(editor.graph)

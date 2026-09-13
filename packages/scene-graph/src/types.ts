@@ -563,6 +563,12 @@ export interface SceneNode {
   variantPropSpecs: VariantPropSpec[]
 
   boundVariables: Record<string, string>
+  /** Multipliers from bound numeric values to this occurrence's scene units. */
+  variableBindingScales: Partial<Record<string, number>>
+  /** Numeric units for new declarations owned by this node's occurrence scope. */
+  variableAssignmentScales: Partial<Record<string, number>>
+  /** Explicit coordinate scale relative to the containing component definition. */
+  componentScale: number
   variableModes: VariableModeMap
   exportSettings: ExportSetting[]
 

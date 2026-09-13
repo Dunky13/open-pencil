@@ -1,4 +1,4 @@
-import { setInstanceOverride, type SceneNode } from '@open-pencil/scene-graph'
+import { setInstanceOverride, type SceneGraph, type SceneNode } from '@open-pencil/scene-graph'
 
 import type { InstanceOccurrence } from './interpret'
 import type { MaterializedInstance } from './materialize-instance'
@@ -6,6 +6,40 @@ import type { MaterializedInstance } from './materialize-instance'
 export interface MaterializedComponentOccurrence {
   occurrence: InstanceOccurrence
   materialized: MaterializedInstance
+}
+
+export function reconcileOccurrenceStructure(
+  target: InstanceOccurrence,
+  graph: SceneGraph,
+  components: ReadonlyMap<string, MaterializedComponentOccurrence>
+): void {
+  if (target.mainComponentId !== null) {
+    const component = components.get(target.mainComponentId)
+    if (!component) throw new Error(`Missing component occurrence ${target.mainComponentId}`)
+    const liveOrder = new Map(
+      graph.getChildren(component.materialized.root.id).map((node, index) => [node.id, index])
+    )
+    const sourceChildren = new Map(
+      component.occurrence.children.map((child) => [child.sourceId, child])
+    )
+    target.children = target.children
+      .filter((child) => {
+        const source = sourceChildren.get(child.sourceId)
+        const node = source && component.materialized.nodes.get(source)
+        return !!node && liveOrder.has(node.id)
+      })
+      .toSorted((a, b) => {
+        const sourceA = sourceChildren.get(a.sourceId)
+        const sourceB = sourceChildren.get(b.sourceId)
+        const nodeA = sourceA && component.materialized.nodes.get(sourceA)
+        const nodeB = sourceB && component.materialized.nodes.get(sourceB)
+        return (
+          (nodeA ? (liveOrder.get(nodeA.id) ?? 0) : 0) -
+          (nodeB ? (liveOrder.get(nodeB.id) ?? 0) : 0)
+        )
+      })
+  }
+  for (const child of target.children) reconcileOccurrenceStructure(child, graph, components)
 }
 
 /**

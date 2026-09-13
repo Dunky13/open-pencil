@@ -3,7 +3,6 @@ import { normalizeFontFamily, weightToStyle } from '@open-pencil/scene-graph'
 import { effectiveFigmaRawNodeFields } from '../source-metadata'
 import { computeExportTransform, fractionalPosition, mapToFigmaType } from './basics'
 import { bytesToHex } from './bytes'
-import { VARIABLE_BINDING_FIELDS } from './convert'
 import { buildDerivedTextData as buildSharedDerivedTextData } from './derived-text-data'
 import { EMPTY_EXPORT_RUNTIME, type FigNodeChangeExportRuntime } from './export-runtime'
 import { applyFontFeaturesToKiwi } from './font/features'
@@ -14,8 +13,13 @@ import {
   BOUND_VARIABLES_PLUGIN_KEY,
   LAYOUT_DIRECTION_PLUGIN_KEY,
   TEXT_DIRECTION_PLUGIN_KEY,
-  upsertPluginData
+  upsertPluginData,
+  OPEN_PENCIL_PLUGIN_ID
 } from './plugin-data'
+import {
+  exportedVariableConsumptionEntries,
+  mergeVariableConsumptionMaps
+} from './variable-bindings'
 import {
   buildStyleOverrideTable,
   encodeVectorNetworkBlob,
@@ -28,7 +32,7 @@ export {
   FIG_KIWI_DEFAULT_VERSION,
   parseFigKiwiChunks
 } from '@open-pencil/kiwi/fig/container'
-import type { NodeChange, VariableConsumptionEntry } from '@open-pencil/kiwi/fig/codec'
+import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { guidToString, stringToGuid } from '@open-pencil/kiwi/fig/guid'
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { GUID, JSONObject } from '@open-pencil/scene-graph/primitives'
@@ -478,32 +482,32 @@ function serializeVariableBindings(
   graph: SceneGraph,
   varIdToGuid?: Map<string, GUID>
 ): void {
-  if (Object.keys(node.boundVariables).length === 0) return
-  const entries: VariableConsumptionEntry[] = []
+  const entries = exportedVariableConsumptionEntries(node, graph, varIdToGuid)
   const roundtripBindings: Record<string, string> = {}
-  const typeMap: Record<string, string> = { COLOR: 'COLOR', BOOLEAN: 'BOOLEAN', STRING: 'STRING' }
   for (const [field, varId] of Object.entries(node.boundVariables)) {
     const variable = graph.variables.get(varId)
     if (!variable) continue
     const varGuid = varIdToGuid?.get(varId) ?? stringToGuid(varId)
     roundtripBindings[field] = guidToString(varGuid)
-
-    const kiwiField = VARIABLE_BINDING_FIELDS[field]
-    if (!kiwiField) continue
-    const resolvedType = typeMap[variable.type] ?? 'FLOAT'
-    entries.push({
-      variableData: {
-        value: { alias: { guid: varGuid } },
-        dataType: 'ALIAS',
-        resolvedDataType: resolvedType
-      },
-      variableField: kiwiField
-    })
   }
-  if (Object.keys(roundtripBindings).length > 0) {
+  if (
+    Object.keys(roundtripBindings).length > 0 ||
+    node.pluginData.some(
+      (entry) =>
+        entry.pluginId === OPEN_PENCIL_PLUGIN_ID && entry.key === BOUND_VARIABLES_PLUGIN_KEY
+    )
+  ) {
     upsertPluginData(node, BOUND_VARIABLES_PLUGIN_KEY, JSON.stringify(roundtripBindings))
   }
-  if (entries.length > 0) nc.variableConsumptionMap = { entries }
+  if (entries.length > 0) {
+    nc.variableConsumptionMap = { entries }
+    Object.assign(
+      nc,
+      mergeVariableConsumptionMaps(effectiveFigmaRawNodeFields(node), {
+        parameterConsumptionMap: { entries }
+      })
+    )
+  }
 }
 
 export function sceneNodeToKiwi(

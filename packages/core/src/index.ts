@@ -386,7 +386,6 @@ export { readPenFile, parsePenFile } from '@open-pencil/pen'
 export {
   readFigFile,
   parseFigFile,
-  importNodeChanges,
   initCodec,
   encodeMessage,
   decodeMessage,

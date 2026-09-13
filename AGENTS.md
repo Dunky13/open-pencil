@@ -176,6 +176,7 @@ Keep responsibilities distinct: engine tests cover state contracts, Playwright b
 ## Scene graph
 
 - Nodes live in a flat `Map<string, SceneNode>`; runtime hierarchy uses `parentId` and `childIds`.
+- Numeric binding conversions live in format-neutral `variableBindingScales`, alongside `boundVariables`. Preserve them when cloning/transferring nodes. Editor and Figma API variable actions share binding/layout reconciliation under Core's `layout/`; changing a token or mode must not merely repaint stale numeric geometry.
 - Frames do not clip by default.
 - Sort children geometrically before creating auto-layout. Dragging outside a frame reparents; groups preserve child world positions.
 - Layer trees must react to reparenting rather than retaining stale child references.
@@ -185,6 +186,7 @@ Keep responsibilities distinct: engine tests cover state contracts, Playwright b
 - Component types use `#9747ff`.
 - Instance children map to component children through `componentId`; runtime overrides use structured `InstanceOverrideState` (`self` and `descendants` maps).
 - Component edits must propagate through editor/component sync—never hand-copy properties in app UI. Use Scene Graph copy helpers for nested values.
+- SceneGraph `componentScale` records occurrence coordinates explicitly; synchronization converts source/target units without inferring ratios from dimensions. Shared rescaling lives under `packages/scene-graph/src/scaling/`; Core's Figma API delegates there. Binding declaration units and existing binding conversions remain separate metadata.
 
 ## Layout
 

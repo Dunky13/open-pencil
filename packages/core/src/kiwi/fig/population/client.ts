@@ -1,7 +1,6 @@
 import type { FigSessionCheckpoint } from '@open-pencil/fig'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
-import { getLazyFigImportContext } from '#core/kiwi/fig/lazy-import'
 import type { FigSessionResponse } from '#core/kiwi/fig/session/protocol'
 import { updateReaderRecovery, releaseReaderRecovery } from '#core/kiwi/fig/session/recovery'
 import { randomHex } from '#core/random'
@@ -43,19 +42,11 @@ function emitTelemetry(detail: FigPopulationWorkerTelemetry): void {
   globalThis.dispatchEvent(new CustomEvent('openpencil:fig-population-worker', { detail }))
 }
 
-const replacementGraphs = new WeakSet<SceneGraph>()
-
-export function requiresFigReaderSession(graph: SceneGraph): boolean {
-  return replacementGraphs.has(graph)
-}
-
 export function registerFigPopulationWorker(
   graph: SceneGraph,
   worker: Worker,
-  port?: MessagePort,
-  replacementReader = false
+  port?: MessagePort
 ): void {
-  if (replacementReader) replacementGraphs.add(graph)
   if (graph.nodes.size > MAX_FIG_POPULATION_WORKER_NODES) {
     emitTelemetry({ event: 'fallback', reason: 'oversized' })
     if (!port) {
@@ -104,7 +95,6 @@ export async function requestOriginalArchive(graph: SceneGraph): Promise<Uint8Ar
 
 export function releaseFigPopulationWorker(graph: SceneGraph): void {
   releaseReaderRecovery(graph)
-  replacementGraphs.delete(graph)
   populationWorkers.get(graph)?.terminate()
   populationWorkers.delete(graph)
   originalArchiveRequests.get(graph)?.unbind()
@@ -205,8 +195,6 @@ export function createPopulationWorkerClient(
     try {
       applyFigPopulationDelta(graph, result.delta)
       if (result.checkpoint) updateReaderRecovery(graph, result.checkpoint)
-      const context = getLazyFigImportContext(graph)
-      if (context) context.populatedRootIds = new Set(result.delta.populatedRootIds)
     } catch {
       applyingDelta = false
       fail()

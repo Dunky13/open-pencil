@@ -373,20 +373,24 @@ export function drawReflowedPathTextSilhouettes(
  *                            black fills vs white strokeGeometry
  *   4. scale(fontSize,-fs) — font units → px; Y flip (font space is up-positive)
  */
+export function savedTextEligibility(node: SceneNode): boolean {
+  return (
+    node.styleRuns.length === 0 ||
+    (node.fills.filter((paint) => paint.visible).length === 1 &&
+      !!node.derivedTextGlyphs?.every((glyph) => glyph.firstCharacter !== undefined) &&
+      node.styleRuns.every(
+        (run) =>
+          !run.style.fills ||
+          run.style.fills.every(
+            (paint) => paint.type === 'SOLID' && (!paint.blendMode || paint.blendMode === 'NORMAL')
+          )
+      ))
+  )
+}
+
 export function canDrawSavedText(node: SceneNode, fill?: Fill): boolean {
   if (fill && fill.type !== 'SOLID') return false
-  if (node.styleRuns.length === 0) return true
-  if (node.fills.filter((paint) => paint.visible).length !== 1) return false
-  return (
-    !!node.derivedTextGlyphs?.every((glyph) => glyph.firstCharacter !== undefined) &&
-    node.styleRuns.every(
-      (run) =>
-        !run.style.fills ||
-        run.style.fills.every(
-          (paint) => paint.type === 'SOLID' && (!paint.blendMode || paint.blendMode === 'NORMAL')
-        )
-    )
-  )
+  return savedTextEligibility(node)
 }
 
 export function drawDerivedText(r: SkiaRenderer, canvas: Canvas, node: SceneNode): boolean {
@@ -395,6 +399,7 @@ export function drawDerivedText(r: SkiaRenderer, canvas: Canvas, node: SceneNode
   // Pixel-snap is for horizontal Figma baselines only — on a curve it stair-steps
   // letter positions and breaks registration with strokeGeometry.
   const snapBaselines = !hasRotatedDerivedGlyphs(node)
+  const savedTextEligible = savedTextEligibility(node)
   let underlineBaselineY = 0
   for (const glyph of node.derivedTextGlyphs) {
     const glyphY = snapBaselines ? snapDerivedGlyphBaseline(glyph.y) : glyph.y
@@ -414,7 +419,7 @@ export function drawDerivedText(r: SkiaRenderer, canvas: Canvas, node: SceneNode
               glyph.firstCharacter < run.start + run.length
           )
     const fills = run?.style.fills
-    if (fills && canDrawSavedText(node)) {
+    if (fills && savedTextEligible) {
       const paint = r.fillPaint.copy()
       try {
         for (const fill of fills) {

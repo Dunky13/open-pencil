@@ -76,8 +76,16 @@ test('later page instances inherit edits to an already loaded component', async 
     {},
     { graph, checkpoint: checkpointBeforeSecondPage }
   )
-  expect(() => retry.loadPage(session.pages[1].id)).toThrow('structural reconciliation')
-  expect(graph.nodes.size).toBe(beforeFailure + 1)
+  retry.loadPage(session.pages[1].id)
+  expect(graph.nodes.size).toBeGreaterThan(beforeFailure)
+  const added = graph.getChildren(liveComponent.id).find((node) => node.name === 'Added child')
+  expect(added).toBeDefined()
+  const retryPage = retry.graphPageId(session.pages[1].id)
+  const retryInstance =
+    retryPage && graph.getChildren(retryPage).find((node) => node.type === 'INSTANCE')
+  expect(
+    retryInstance && graph.getChildren(retryInstance.id).some((node) => node.name === 'Added child')
+  ).toBe(true)
 })
 
 test('loading a destination page preserves an existing reparented node', async () => {

@@ -38,15 +38,20 @@ test('compact checkpoint reconnects source paths without overwriting live edits'
 })
 
 for (const corruption of ['missing', 'duplicate', 'path', 'component', 'root'] as const) {
-  test(`rejects ${corruption} checkpoint corruption before graph mutation`, () => {
+  test(`reports ${corruption} checkpoint handling before graph mutation`, () => {
     const { graph, occurrence, checkpoint } = setup()
-    const before = structuredClone([...graph.nodes])
-    if (corruption === 'missing') checkpoint.nodes.pop()
+    const before = corruption === 'missing' ? null : structuredClone([...graph.nodes])
+    if (corruption === 'missing') {
+      graph.deleteNode(checkpoint.nodes.at(-1)?.nodeId ?? '')
+      checkpoint.nodes.pop()
+    }
     if (corruption === 'duplicate') checkpoint.nodes.push(checkpoint.nodes[1])
     if (corruption === 'path') checkpoint.nodes[1].path = ['missing']
     if (corruption === 'component') checkpoint.nodes[1].mainComponentId = 'other'
     if (corruption === 'root') checkpoint.rootId = checkpoint.nodes[1].nodeId
-    expect(() => restoreComponentCheckpoint(graph, occurrence, checkpoint)).toThrow()
-    expect([...graph.nodes]).toEqual(before)
+    if (corruption === 'missing')
+      expect(() => restoreComponentCheckpoint(graph, occurrence, checkpoint)).not.toThrow()
+    else expect(() => restoreComponentCheckpoint(graph, occurrence, checkpoint)).toThrow()
+    if (before) expect([...graph.nodes]).toEqual(before)
   })
 }

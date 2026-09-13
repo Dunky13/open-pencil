@@ -91,7 +91,7 @@ test('page preparation recovers an invalidated replacement worker without replac
     onerror: null,
     onmessage: null
   } as Worker
-  registerFigPopulationWorker(graph, worker, undefined, true)
+  registerFigPopulationWorker(graph, worker)
   const editor = createEditor({ graph })
   const first = graph.getChildren(graph.getPages()[0].id)[0]
   graph.updateNode(first.id, { name: 'Edited' })

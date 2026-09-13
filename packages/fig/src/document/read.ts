@@ -6,6 +6,8 @@ import {
   createOccurrenceInterpreter,
   type InterpretInstanceOptions
 } from '../instance-overrides/interpret'
+import type { SymbolData } from '../instance-overrides/types'
+import { applyStyleRefsToFields } from '../node-change/style-refs'
 import {
   resolveDocumentBindingReferences,
   type BindingReferenceDiagnostic
@@ -37,12 +39,29 @@ function createReader(
   pageIds?: ReadonlySet<string>
 ) {
   const bindingDiagnostics: BindingReferenceDiagnostic[] = []
+  const liveSource = source.filter((node) => node.phase !== 'REMOVED')
   const changes = resolveDocumentBindingReferences(
-    source,
+    liveSource,
     (diagnostic) => bindingDiagnostics.push(diagnostic),
     ownership
   )
   inheritComponentPropertyDefinitions(changes)
+  const styles = new Map(
+    changes.flatMap((node) => (node.guid ? [[guidToString(node.guid), node] as const] : []))
+  )
+  const assets = new Map<string, string>()
+  for (const node of changes)
+    if (node.guid && typeof node.key === 'string') {
+      const id = guidToString(node.guid)
+      assets.set(node.key, id)
+      if (typeof node.version === 'string') assets.set(`${node.key}@${node.version}`, id)
+    }
+  const resolveStyles = (node: NodeChange): void => {
+    applyStyleRefsToFields(styles, node, assets)
+    for (const override of (node.symbolData as SymbolData | undefined)?.symbolOverrides ?? [])
+      resolveStyles(override as NodeChange)
+  }
+  for (const node of changes) resolveStyles(node)
   return createScopedReader(changes, bindingDiagnostics, pageIds)
 }
 
@@ -94,6 +113,9 @@ function createScopedReader(
     },
     get sourceRecords() {
       return structuredClone(changes)
+    },
+    get documentRecord() {
+      return structuredClone(changes.find((change) => change.type === 'DOCUMENT'))
     },
     dependencyClosure: closure,
     pages,

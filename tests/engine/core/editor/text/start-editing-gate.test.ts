@@ -21,11 +21,19 @@ describe('startTextEditing — path-text font gate', () => {
     const page = editor.state.currentPageId
     const box = { x: 0, y: 0, width: 200, height: 200 }
 
+    const path = {
+      network: { vertices: [], segments: [], regions: [] },
+      normalizedSize: { x: 200, y: 200 },
+      tValue: 0,
+      forward: true
+    }
+
     // Path text, font AVAILABLE → editable.
     const editable = editor.graph.createNode('TEXT', page, {
       text: 'ab',
       fontFamily: 'Inter',
       fontWeight: 400,
+      textPathData: structuredClone(path),
       textPathBox: { ...box }
     })
     editor.startTextEditing(editable.id)
@@ -37,6 +45,7 @@ describe('startTextEditing — path-text font gate', () => {
       text: 'ab',
       fontFamily: 'NoSuchFont',
       fontWeight: 400,
+      textPathData: structuredClone(path),
       textPathBox: { ...box }
     })
     editor.startTextEditing(baked.id)

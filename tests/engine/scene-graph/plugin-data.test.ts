@@ -3,12 +3,12 @@ import { describe, expect, test } from 'bun:test'
 import {
   exportFigFile,
   FigmaAPI,
-  importNodeChanges,
   initCodec,
   parseFigFile,
   SceneGraph,
   type NodeChange
 } from '@open-pencil/core'
+import { materializeDocument } from '@open-pencil/fig'
 
 import { deduplicateNodeChangePluginData } from '#core/kiwi'
 
@@ -175,11 +175,11 @@ describe('plugin data deduplication', () => {
       { pluginID: 'my-plugin', key: 'customKey', value: 'hello' }
     ]
 
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, { pluginData: entries })
-    ])
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -204,11 +204,11 @@ describe('plugin data deduplication', () => {
   test('importNodeChanges with single pluginData entry preserves it (zero-copy path)', () => {
     const entries = [{ pluginID: 'open-pencil', key: 'textDirection', value: 'LTR' }]
 
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, { pluginData: entries })
-    ])
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -221,7 +221,11 @@ describe('plugin data deduplication', () => {
   })
 
   test('importNodeChanges with empty pluginData returns empty array', () => {
-    const graph = importNodeChanges([doc(), canvas(), node('FRAME', 10, 1, { pluginData: [] })])
+    const graph = materializeDocument([
+      doc(),
+      canvas(),
+      node('FRAME', 10, 1, { pluginData: [] })
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -236,11 +240,11 @@ describe('FigmaNodeProxy plugin data lazy shared computation', () => {
     await initCodec()
 
     const entries = [{ pluginID: 'tokens', key: 'tokens/color', value: '{"h":240}' }]
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, { pluginData: entries })
-    ])
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -259,11 +263,11 @@ describe('FigmaNodeProxy plugin data lazy shared computation', () => {
       { pluginID: 'tokens', key: 'tokens/accent', value: '#ff0000' },
       { pluginID: 'tokens', key: 'tokens/bg', value: '#ffffff' }
     ]
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, { pluginData: entries })
-    ])
+    ]).graph
 
     const api = new FigmaAPI(graph)
     const page = graph.getPages()[0]
@@ -298,13 +302,13 @@ describe('FigmaNodeProxy plugin data split-brain regression', () => {
     await initCodec()
 
     // Simulate an imported fig node with shared data encoded in pluginData
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, {
         pluginData: [{ pluginID: 'tokens', key: 'tokens/accent', value: 'v1' }]
       })
-    ])
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -334,13 +338,13 @@ describe('FigmaNodeProxy plugin data split-brain regression', () => {
   test('deletion via setSharedPluginData survives roundtrip', async () => {
     await initCodec()
 
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, {
         pluginData: [{ pluginID: 'tokens', key: 'tokens/accent', value: 'v1' }]
       })
-    ])
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -377,7 +381,7 @@ describe('extractPluginRelaunchData deduplication via importNodeChanges', () => 
 
     const changes = [doc(), canvas(), node('FRAME', 10, 1, { pluginRelaunchData: relaunchEntries })]
     deduplicateNodeChangePluginData(changes)
-    const graph = importNodeChanges(changes)
+    const graph = materializeDocument(changes).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -399,11 +403,11 @@ describe('extractPluginRelaunchData deduplication via importNodeChanges', () => 
       { pluginID: 'plugin-b', command: 'configure', message: 'Config', isDeleted: true }
     ]
 
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, { pluginRelaunchData: relaunchEntries })
-    ])
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
@@ -411,11 +415,11 @@ describe('extractPluginRelaunchData deduplication via importNodeChanges', () => 
   })
 
   test('empty relaunch data returns empty array', () => {
-    const graph = importNodeChanges([
+    const graph = materializeDocument([
       doc(),
       canvas(),
       node('FRAME', 10, 1, { pluginRelaunchData: [] })
-    ])
+    ]).graph
 
     const page = graph.getPages()[0]
     const frame = graph.getChildren(page.id)[0]
