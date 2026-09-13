@@ -54,7 +54,7 @@ const opening = '{"x":100,"y":80,"jsx":"<Frame w={400} h={200}>'
 describe('JSX tool preview controller', () => {
   it('decodes incomplete JSON without inventing a partial number', () => {
     expect(readPreviewInput(opening)?.jsx).toBe('<Frame w={400} h={200}>')
-    expect(readPreviewInput('{"jsx":"<Frame/>","x":1e')?.x).toBeUndefined()
+    expect(readPreviewInput('{"jsx":"<Frame/>","x":1e')).toEqual({ jsx: '<Frame/>' })
     expect(readPreviewInput('{"jsx":12}')).toBeNull()
   })
 
