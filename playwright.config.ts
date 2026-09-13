@@ -1,10 +1,18 @@
 import { defineConfig } from '@playwright/test'
-import * as v from 'valibot'
 
-const port = v.parse(
-  v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(65535)),
-  Number(process.env.PLAYWRIGHT_PORT ?? 1420)
-)
+const appPort = process.env.OPENPENCIL_TEST_PORT ?? '1420'
+const mcpPort = process.env.OPENPENCIL_TEST_MCP_PORT ?? '7600'
+for (const port of [appPort, mcpPort]) {
+  if (!/^\d+$/.test(port) || Number(port) < 1024 || Number(port) > 65535) {
+    throw new Error('Browser test ports must be integers between 1024 and 65535')
+  }
+}
+if (Number(appPort) === Number(mcpPort)) throw new Error('App and MCP test ports must differ')
+const origin = `http://localhost:${appPort}`
+const reuse = process.env.OPENPENCIL_TEST_REUSE_SERVER
+if (reuse !== undefined && reuse !== '0' && reuse !== '1') {
+  throw new Error('OPENPENCIL_TEST_REUSE_SERVER must be 0 or 1')
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -21,7 +29,7 @@ export default defineConfig({
     }
   },
   use: {
-    baseURL: `http://localhost:${port}`,
+    baseURL: origin,
     testIdAttribute: 'data-test-id',
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
@@ -56,8 +64,14 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: `bun run dev --port ${port}`,
-    port,
-    reuseExistingServer: true
+    command: `bun run dev --port ${appPort} --strictPort`,
+    cwd: import.meta.dirname,
+    url: origin,
+    env: {
+      OPENPENCIL_DEV_ORIGIN: origin,
+      OPENPENCIL_DEV_MCP_PORT: mcpPort,
+      PORTLESS_URL: ''
+    },
+    reuseExistingServer: !process.env.CI && reuse === '1'
   }
 })
