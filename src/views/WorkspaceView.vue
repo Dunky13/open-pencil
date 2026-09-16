@@ -14,7 +14,7 @@ import { openDeepLink } from '@/app/document/io/deep-link'
 import { openWebLinkFromLocation, withoutWebLinkParams } from '@/app/document/io/web-link'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { useKeyboard } from '@/app/shell/keyboard/use'
-import { openFileFromPath, useEditorMenu } from '@/app/shell/menu/use'
+import { openDesignFileBatch, openFileFromPath, useEditorMenu } from '@/app/shell/menu/use'
 import { toast } from '@/app/shell/ui'
 import {
   activeTab,
@@ -110,19 +110,23 @@ function selectNodeByName(name: string): boolean {
 async function openPendingAssociatedFiles(): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core')
   const files = await invoke<PendingOpenFile[]>('take_pending_open')
-  for (const file of files) {
+  // Serialised, but one failing entry must not swallow the rest of the batch:
+  // `openDesignFileBatch` is the per-item catch every other open path already uses,
+  // so a rejection is logged and toasted and the drain carries on to the next file.
+  await openDesignFileBatch(
+    files,
+    (file) => file.path.split(/[/\\]/).pop() ?? file.path,
     // Rust tags each entry by producer: a link's path is repo-relative and only the
     // deep-link resolver may turn it into a real one.
-    if (file.deepLink) {
+    async (file) => {
+      if (!file.deepLink) return await openFileFromPath(file.path)
       await openDeepLink(file, {
         openPaths: openDocumentPaths,
         selectByName: selectNodeByName,
         notify: toast.info
       })
-    } else {
-      await openFileFromPath(file.path)
     }
-  }
+  )
 }
 
 // A deep link can block this drain on a modal file picker, so a second event must

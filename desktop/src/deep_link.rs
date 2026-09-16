@@ -1,3 +1,5 @@
+use std::path::{Component, Path, PathBuf};
+
 use url::Url;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -48,6 +50,65 @@ pub fn parse_open_url(url: &Url) -> Result<DeepLinkOpen, DeepLinkError> {
         file,
         node: node.filter(|n| !n.is_empty()),
     })
+}
+
+/// Whether `candidate` ends with `suffix` as a whole sequence of path segments.
+///
+/// The link carries a repository-relative path, the candidate is an absolute path
+/// from an open tab or the file picker, and the two may disagree on case: on
+/// macOS and Windows the default filesystem is case-insensitive, so `Web/Design`
+/// and `web/design` name the same file and a case-sensitive comparison would
+/// cancel a link that points at an already open document.
+///
+/// The rule is per-platform, not per-volume: ASCII-case-insensitive on macOS and
+/// Windows, exact on Linux. Deliberately ASCII only — macOS folds the full Unicode
+/// case table, matching that here would mean carrying a Unicode fold for a gain
+/// nobody links against. A case-sensitive APFS volume is likewise not probed;
+/// the cost of being wrong there is a link that focuses a same-named file in a
+/// different directory case, and no filesystem access is granted by this.
+///
+/// `candidate` is canonicalized first so a symlinked or `..`-laden tab path still
+/// compares by its real segments. A candidate that cannot be canonicalized (the
+/// file moved, or the volume went away) falls back to its literal segments rather
+/// than failing the match.
+#[tauri::command]
+pub fn path_matches_suffix(candidate: String, suffix: String) -> bool {
+    let canonical = Path::new(&candidate)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(&candidate));
+    path_ends_with_segments(&canonical, &suffix)
+}
+
+fn segment_eq(left: &str, right: &str) -> bool {
+    if cfg!(any(target_os = "macos", windows)) {
+        left.eq_ignore_ascii_case(right)
+    } else {
+        left == right
+    }
+}
+
+fn path_ends_with_segments(candidate: &Path, suffix: &str) -> bool {
+    let wanted: Vec<&str> = suffix
+        .split(['/', '\\'])
+        .filter(|s| !s.is_empty())
+        .collect();
+    if wanted.is_empty() {
+        return false;
+    }
+    let actual: Vec<String> = candidate
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect();
+    if actual.len() < wanted.len() {
+        return false;
+    }
+    actual[actual.len() - wanted.len()..]
+        .iter()
+        .zip(&wanted)
+        .all(|(have, want)| segment_eq(have, want))
 }
 
 #[cfg(test)]
@@ -119,5 +180,41 @@ mod tests {
             Err(DeepLinkError::BadExtension)
         );
         assert!(parse("openpencil://open?file=a.fig").is_ok());
+    }
+
+    #[test]
+    fn suffix_matches_whole_trailing_segments() {
+        assert!(path_ends_with_segments(
+            Path::new("/r/hikyo/web/design/hikyo.pen"),
+            "web/design/hikyo.pen"
+        ));
+        // A partial segment is not a segment: `redesign` must not satisfy `design`.
+        assert!(!path_ends_with_segments(
+            Path::new("/r/redesign/hikyo.pen"),
+            "design/hikyo.pen"
+        ));
+        // A suffix longer than the path cannot match.
+        assert!(!path_ends_with_segments(
+            Path::new("/hikyo.pen"),
+            "design/hikyo.pen"
+        ));
+        assert!(!path_ends_with_segments(Path::new("/r/hikyo.pen"), ""));
+    }
+
+    #[test]
+    fn suffix_case_rule_follows_the_platform() {
+        let folded = path_ends_with_segments(
+            Path::new("/r/hikyo/Web/Design/Hikyo.pen"),
+            "web/design/hikyo.pen",
+        );
+        assert_eq!(folded, cfg!(any(target_os = "macos", windows)));
+    }
+
+    #[test]
+    fn suffix_accepts_backslash_separators() {
+        assert!(path_ends_with_segments(
+            Path::new("/r/web/design/hikyo.pen"),
+            "web\\design\\hikyo.pen"
+        ));
     }
 }

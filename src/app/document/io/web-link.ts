@@ -22,7 +22,7 @@ export interface WebLinkActions {
  * Pure parser over a `location.search` string. Returns null when the link carries no
  * usable `file`; a present-but-refused `file` also warns once so the cause is visible
  * in the console instead of looking like a silent no-op. A repeated key takes its last
- * value, matching the desktop parser.
+ * value, matching the desktop parser. The accepted URL carries no fragment.
  */
 export function parseWebOpenParams(search: string): WebOpenParams | null {
   const params = new URLSearchParams(search)
@@ -39,6 +39,10 @@ export function parseWebOpenParams(search: string): WebOpenParams | null {
     console.warn('[Web link] refused file, expected https and .pen or .fig:', clamp(file))
     return null
   }
+  // The fragment never reaches the server, so two links that differ only in it name
+  // the same document; keeping it would make the tab identity (an exact `href` compare)
+  // see two documents and open a duplicate tab for each fragment.
+  url.hash = ''
   return { file: url, node: params.getAll('node').at(-1) || undefined }
 }
 

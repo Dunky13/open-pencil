@@ -12,6 +12,7 @@ use credentials::{
     credential_access_paused, credential_retry_access, credential_read, credential_remove, credential_status, credential_store_availability,
     credential_write,
 };
+use deep_link::path_matches_suffix;
 use fig_container::build_fig_file;
 use fonts::{list_system_fonts, load_system_font};
 use http::proxy_http_request;
@@ -293,6 +294,7 @@ pub fn run() {
             credential_store_availability,
             credential_write,
             mcp_lookup,
+            path_matches_suffix,
             list_system_fonts,
             load_system_font,
             proxy_http_request,

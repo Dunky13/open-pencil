@@ -7,7 +7,8 @@ import { resolveBrowserFileURL } from '@/app/document/io/browser'
 import { notificationMessages } from '@/app/i18n/notifications'
 import { rememberRecentFile } from '@/app/recent-files'
 import { toast } from '@/app/shell/ui'
-import { openFileInNewTab } from '@/app/tabs'
+import { getTabsSnapshot, openFileInNewTab, switchTab } from '@/app/tabs'
+import { findTabByFileIdentity } from '@/app/tabs/open/identity'
 import { isTauri } from '@/app/tauri/env'
 import { IS_BROWSER } from '@/constants'
 
@@ -47,12 +48,57 @@ if (IS_BROWSER && 'window' in globalThis) {
   })
 }
 
+/**
+ * Ceiling on a document fetched from a URL. A link can point anywhere, and buffering
+ * whatever the host sends would let one URL exhaust the tab's memory. Well past any
+ * real design file: the largest `.fig` fixtures in this repo are a few MB.
+ */
+const MAX_REMOTE_DOCUMENT_BYTES = 64 * 1024 * 1024
+
+/**
+ * Buffers a response body, aborting as soon as it exceeds `maxBytes`. The body is read
+ * as a stream and counted chunk by chunk: `Content-Length` is the sender's claim, absent
+ * on a chunked response and free to lie on any other, so the cap is enforced on the bytes
+ * that actually arrive. `abort` cancels the request itself, so an oversized body stops
+ * downloading instead of being drained to its end.
+ */
+export async function readBodyWithLimit(
+  response: Response,
+  maxBytes: number,
+  abort: () => void
+): Promise<Blob> {
+  if (!response.body) throw new Error('Failed to fetch file: the response carried no body')
+  const chunks: Uint8Array[] = []
+  let size = 0
+  const reader = response.body.getReader()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > maxBytes) {
+        abort()
+        throw new Error(`exceeds ${Math.floor(maxBytes / (1024 * 1024))} MiB`)
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  // Copied per chunk: a stream chunk's buffer is typed `ArrayBufferLike`, which a Blob
+  // does not accept, and the Blob would copy the bytes anyway.
+  return new Blob(chunks.map((chunk) => new Uint8Array(chunk)))
+}
+
 /** Fetches a document over HTTP and opens it in a new tab. Browser builds only. */
 export async function openBrowserFileFromURL(url: URL, init?: RequestInit): Promise<void> {
-  const response = await fetch(url, init)
+  const controller = new AbortController()
+  const response = await fetch(url, { ...init, signal: controller.signal })
   if (!response.ok)
     throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
-  const blob = await response.blob()
+  const blob = await readBodyWithLimit(response, MAX_REMOTE_DOCUMENT_BYTES, () =>
+    controller.abort()
+  )
   const name = url.pathname.split('/').pop() ?? 'file.fig'
   assertSupportedDesignFile(name)
   const file = new File([blob], name, { type: 'application/octet-stream' })
@@ -112,6 +158,19 @@ export async function openFileFromPath(path: string) {
   const file = await readTauriDesignFile(path)
   await openFileInNewTab(file, undefined, path)
   rememberRecentFile(path)
+}
+
+/**
+ * Focuses the tab already showing `path` without touching the disk. False when no tab
+ * holds it, which lets a caller fall back to opening the file. `openFileFromPath` would
+ * also land on the existing tab, but only after re-reading the file, so a document that
+ * moved or lost its permissions since it opened would reject instead of being focused.
+ */
+export async function activateTabForPath(path: string): Promise<boolean> {
+  const tab = await findTabByFileIdentity(getTabsSnapshot(), { handle: null, path })
+  if (!tab) return false
+  switchTab(tab.id)
+  return true
 }
 
 export async function openFileDialog() {

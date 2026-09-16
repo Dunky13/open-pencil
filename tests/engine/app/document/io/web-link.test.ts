@@ -24,6 +24,20 @@ describe('parseWebOpenParams', () => {
     expect(target?.node).toBeUndefined()
   })
 
+  test('drops the fragment, so two links to one file do not open two tabs', () => {
+    // The tab identity compares the source URL exactly; a fragment never reaches the
+    // server, so keeping it would duplicate the document once per fragment.
+    const first = parseWebOpenParams(`?file=${encodeURIComponent(`${RAW}#Button`)}`)
+    const second = parseWebOpenParams(`?file=${encodeURIComponent(`${RAW}#Card`)}`)
+    expect(first?.file.href).toBe(RAW)
+    expect(first?.file.href).toBe(second?.file.href)
+  })
+
+  test('keeps the query string, which the server does see', () => {
+    const target = parseWebOpenParams(`?file=${encodeURIComponent(`${RAW}?v=2#x`)}`)
+    expect(target?.file.href).toBe(`${RAW}?v=2`)
+  })
+
   test('refuses http', () => {
     expect(parseWebOpenParams('?file=http%3A%2F%2Fexample.com%2Fa.pen')).toBeNull()
   })

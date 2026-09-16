@@ -1,12 +1,14 @@
 // openpencil://open?file=<relative>&node=<name>. The file is resolved against the
 // paths of the open tabs by whole trailing segments, so a one-segment file takes
-// the first open tab whose path ends with it. Otherwise the user picks it once
+// the first open tab whose path ends with it. The segment comparison is the
+// filesystem's, not JavaScript's: the desktop build asks Rust, which folds ASCII
+// case on macOS and Windows and compares exactly on Linux. Otherwise the user picks it once
 // per link and the pick must end with the same relative path. The opened file
 // lands in the recent-files list like any other file opened from the app. No fs
 // scope is widened here: the dialog plugin scopes what it returns, and nothing
 // else is ever read from disk.
 import { notificationMessages } from '@/app/i18n/notifications'
-import { chooseTauriOpenPaths, openFileFromPath } from '@/app/shell/menu/files'
+import { activateTabForPath, chooseTauriOpenPaths, openFileFromPath } from '@/app/shell/menu/files'
 
 export interface DeepLinkTarget {
   path: string
@@ -26,25 +28,45 @@ export function clamp(value: string): string {
   return value.length > 120 ? `${value.slice(0, 119)}…` : value
 }
 
-function endsWithSegments(absolute: string, relative: string): boolean {
-  const a = absolute.replaceAll('\\', '/')
-  const r = relative.replaceAll('\\', '/')
-  return a === r || a.endsWith(`/${r}`)
+/**
+ * Whether `candidate` ends with `relative` as whole path segments, decided by the
+ * `path_matches_suffix` Tauri command: it canonicalizes the candidate and compares
+ * its trailing segments the way the platform's filesystem does. Doing this in JS
+ * would either be case-sensitive (and cancel a link whose case differs on macOS or
+ * Windows) or lowercase everything (and match the wrong file on Linux).
+ */
+export type SuffixMatcher = (candidate: string, relative: string) => Promise<boolean>
+
+const tauriMatchesSuffix: SuffixMatcher = async (candidate, relative) => {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<boolean>('path_matches_suffix', { candidate, suffix: relative })
 }
 
-export function resolveDeepLinkFile(file: string, openPaths: string[]): string | null {
-  return openPaths.find((path) => endsWithSegments(path, file)) ?? null
+export async function resolveDeepLinkFile(
+  file: string,
+  openPaths: string[],
+  matches: SuffixMatcher = tauriMatchesSuffix
+): Promise<string | null> {
+  for (const path of openPaths) {
+    if (await matches(path, file)) return path
+  }
+  return null
 }
 
 /** File-system entry points, injected so tests can drive the picker branch. */
 interface DeepLinkIo {
   choosePaths: () => Promise<string[]>
   openPath: (path: string) => Promise<void>
+  /** Focuses the tab already showing `path`. False when no tab holds it. */
+  activateTab: (path: string) => Promise<boolean>
+  matchesSuffix: SuffixMatcher
 }
 
 const tauriIo: DeepLinkIo = {
   choosePaths: chooseTauriOpenPaths,
-  openPath: openFileFromPath
+  openPath: openFileFromPath,
+  activateTab: activateTabForPath,
+  matchesSuffix: tauriMatchesSuffix
 }
 
 export async function openDeepLink(
@@ -53,17 +75,21 @@ export async function openDeepLink(
   io: DeepLinkIo = tauriIo
 ): Promise<void> {
   const messages = notificationMessages.get()
-  let path = resolveDeepLinkFile(target.path, actions.openPaths())
-  if (!path) {
+  const known = await resolveDeepLinkFile(target.path, actions.openPaths(), io.matchesSuffix)
+  if (known) {
+    // An already open document is focused, never re-read from disk: re-reading would
+    // fail the whole link when the file moved or turned unreadable since it opened.
+    // It can also have closed between the snapshot and the activate — open it then.
+    if (!(await io.activateTab(known))) await io.openPath(known)
+  } else {
     actions.notify(messages.deepLinkLocateFile({ file: clamp(target.path) }))
-    path = resolveDeepLinkFile(target.path, await io.choosePaths())
-    if (!path) {
+    const picked = await resolveDeepLinkFile(target.path, await io.choosePaths(), io.matchesSuffix)
+    if (!picked) {
       actions.notify(messages.deepLinkCancelled({ file: clamp(target.path) }))
       return
     }
+    await io.openPath(picked)
   }
-  // Re-opening an already open path focuses its tab instead of duplicating it.
-  await io.openPath(path)
   if (target.node && !actions.selectByName(target.node)) {
     actions.notify(
       messages.deepLinkNodeNotFound({ node: clamp(target.node), file: clamp(target.path) })
