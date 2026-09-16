@@ -21,6 +21,11 @@ export interface DeepLinkActions {
   notify: (message: string) => void
 }
 
+/** A link is attacker-supplied text; a toast is not a place for 4 KB of it. */
+function clamp(value: string): string {
+  return value.length > 120 ? `${value.slice(0, 119)}…` : value
+}
+
 function endsWithSegments(absolute: string, relative: string): boolean {
   const a = absolute.replaceAll('\\', '/')
   const r = relative.replaceAll('\\', '/')
@@ -50,16 +55,18 @@ export async function openDeepLink(
   const messages = notificationMessages.get()
   let path = resolveDeepLinkFile(target.path, actions.openPaths())
   if (!path) {
-    actions.notify(messages.deepLinkLocateFile({ file: target.path }))
+    actions.notify(messages.deepLinkLocateFile({ file: clamp(target.path) }))
     path = resolveDeepLinkFile(target.path, await io.choosePaths())
     if (!path) {
-      actions.notify(messages.deepLinkCancelled({ file: target.path }))
+      actions.notify(messages.deepLinkCancelled({ file: clamp(target.path) }))
       return
     }
   }
   // Re-opening an already open path focuses its tab instead of duplicating it.
   await io.openPath(path)
   if (target.node && !actions.selectByName(target.node)) {
-    actions.notify(messages.deepLinkNodeNotFound({ node: target.node, file: target.path }))
+    actions.notify(
+      messages.deepLinkNodeNotFound({ node: clamp(target.node), file: clamp(target.path) })
+    )
   }
 }
