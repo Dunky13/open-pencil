@@ -58,6 +58,20 @@ Connect Claude Code, Cursor, Windsurf, or any MCP-compatible client to OpenPenci
 
 [MCP Server →](./mcp-server)
 
+## URL scheme
+
+The desktop app registers `openpencil://`, so a published page — a Storybook story, a design review, a README — can link straight to a layer:
+
+```
+openpencil://open?file=web/design/hikyo.pen&node=Button/Large/Default
+```
+
+`file` is a repository-relative path ending in `.pen` or `.fig`; absolute paths and `..` segments are refused. `node` is optional. Both values are URL-encoded, so a literal `+` must be sent as `%2B`, and a repeated key takes its last value.
+
+The app matches `file` against the paths of the open tabs as a whole trailing segment sequence, and focuses that tab. If no open tab matches, a file picker asks for the file once; the picked file must end with the same relative path, otherwise the link is cancelled. No path is joined onto a root and no filesystem access is granted beyond what the picker returns. An opened file joins the recent-files list, like any other file you open.
+
+With a node name, the app selects the layer of that exact name on the current page and zooms to it. An unknown name shows a notice and leaves the document open. Opening a file and selecting a layer is all the scheme can do.
+
 ## Why Open?
 
 Figma is a closed platform. Their MCP server is read-only. CDP browser access was killed in version 126. Design files live in a proprietary format on someone else's servers. Plugin development requires a custom runtime with limited APIs.
