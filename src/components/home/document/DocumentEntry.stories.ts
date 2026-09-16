@@ -15,7 +15,7 @@ const meta = {
 } satisfies Meta<{ name: string; metadata: string; view: 'grid' | 'list'; disabled?: boolean }>
 
 export default meta
-type Story = StoryObj<Omit<typeof meta, 'component'>>
+type Story = StoryObj<typeof meta>
 export const Default: Story = {}
 export const List: Story = { args: { view: 'list' } }
 export const LongName: Story = {

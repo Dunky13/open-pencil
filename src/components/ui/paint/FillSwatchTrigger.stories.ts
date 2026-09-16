@@ -30,7 +30,7 @@ const meta = {
 } satisfies Meta<{ fill: Fill; label: string }>
 
 export default meta
-type Story = StoryObj<Omit<typeof meta, 'component'>>
+type Story = StoryObj<typeof meta>
 export const Default: Story = {}
 export const Transparent: Story = {
   args: { fill: { ...fill, color: { ...fill.color, a: 0.35 } } }

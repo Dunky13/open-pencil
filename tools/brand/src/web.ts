@@ -13,6 +13,8 @@ export async function generateWeb(root: string): Promise<BrandFiles> {
   const { adapter, main, micro } = await loadArtwork(root)
   const darkMicro = recolor(micro, adapter, 'dark')
   const app = appArtwork(main, adapter, 'web')
+  const tile = appArtwork(main, adapter, 'tile')
+  const favicon = appArtwork(micro, adapter, 'tile')
   const maskable = appArtwork(main, adapter, 'maskable')
   const icon = initFaviconIconSettings()
   icon.desktop.darkIconType = 'specific'
@@ -21,7 +23,7 @@ export async function generateWeb(root: string): Promise<BrandFiles> {
   icon.touch.icon = stringToSVG(app, adapter)
   icon.webAppManifest.icon = stringToSVG(maskable, adapter)
   const generated = await generateFaviconFiles(
-    { icon: stringToSVG(micro, adapter), darkIcon: stringToSVG(darkMicro, adapter) },
+    { icon: stringToSVG(favicon, adapter), darkIcon: stringToSVG(favicon, adapter) },
     { icon, path: '/brand/', skipMetadataInjection: true },
     adapter
   )
@@ -37,6 +39,8 @@ export async function generateWeb(root: string): Promise<BrandFiles> {
       content instanceof Blob ? Buffer.from(await content.arrayBuffer()) : Buffer.from(content)
     )
   }
+  files.set('brand/app-icon.svg', Buffer.from(tile))
+  files.set('brand/app-icon-1024.png', await sharp(Buffer.from(tile)).png().toBuffer())
   files.set('brand/mark.svg', Buffer.from(main))
   files.set('brand/mark-dark.svg', Buffer.from(recolor(main, adapter, 'dark')))
   files.set('brand/mark-micro.svg', Buffer.from(micro))
@@ -46,7 +50,7 @@ export async function generateWeb(root: string): Promise<BrandFiles> {
   for (const size of [192, 512]) {
     files.set(
       `brand/pwa-${size}.png`,
-      await sharp(Buffer.from(app)).resize(size, size).png().toBuffer()
+      await sharp(Buffer.from(tile)).resize(size, size).png().toBuffer()
     )
   }
   return files

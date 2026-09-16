@@ -74,9 +74,12 @@ export async function validateMaskable(data: Buffer): Promise<void> {
 }
 
 function pngSize(name: string): number | undefined {
+  if (name === 'brand/app-icon-1024.png') return 1024
   if (name === 'apple-touch-icon.png') return 180
   if (name === 'brand/favicon-96x96.png') return 96
   if (name === '128x128@2x.png') return 256
+  if (name === 'icon.png') return 512
+  if (name === 'StoreLogo.png') return 50
   const size = name.match(/(?:pwa-(?:maskable-)?|Square)(\d+)/)?.[1] ?? name.match(/^(\d+)x/)?.[1]
   return size ? Number(size) : undefined
 }

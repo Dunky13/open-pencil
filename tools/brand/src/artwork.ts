@@ -34,21 +34,22 @@ export function recolor(
   return svg.svg()
 }
 
-/** Square opaque web tiles; only desktop artwork includes its own rounded enclosure. */
+/** Shared rounded app icon; touch and maskable variants leave cropping to the platform. */
 export function appArtwork(
   source: string,
   adapter: ImageAdapter,
-  kind: 'web' | 'maskable' | 'desktop'
+  kind: 'web' | 'maskable' | 'tile' | 'desktop'
 ) {
   const svg = adapter.createSvg().size(1024, 1024).viewbox(0, 0, 1024, 1024)
-  const desktop = kind === 'desktop'
-  const inset = desktop ? 64 : 0
+  const rounded = kind === 'tile' || kind === 'desktop'
+  const inset = kind === 'desktop' ? brand.tileInset : 0
   const background = svg
     .rect(1024 - inset * 2, 1024 - inset * 2)
     .move(inset, inset)
     .fill(brand.background)
-  if (desktop) background.radius(200)
-  const scale = kind === 'maskable' ? brand.maskableScale : brand.appScale
+  if (rounded) background.radius(brand.tileRadius)
+  const regularScale = kind === 'tile' ? brand.tileScale : brand.appScale
+  const scale = kind === 'maskable' ? brand.maskableScale : regularScale
   const mark = stringToSVG(source, adapter).size(1024 * scale, 1024 * scale)
   mark.move((1024 * (1 - scale)) / 2, (1024 * (1 - scale)) / 2)
   svg.add(mark)

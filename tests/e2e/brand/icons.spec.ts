@@ -5,9 +5,7 @@ import { CanvasHelper } from '#tests/helpers/canvas'
 for (const deviceScaleFactor of [1, 2]) {
   test.describe(`brand at ${deviceScaleFactor}x`, () => {
     test.use({ deviceScaleFactor })
-    test('the editor uses the optical brand mark and follows the selected app theme', async ({
-      page
-    }) => {
+    test('the editor keeps its 24px ivory tile in both app themes', async ({ page }) => {
       await page.goto('/?test')
       await new CanvasHelper(page).waitForInit()
       const logo = page.getByTestId('app-logo')
@@ -18,15 +16,42 @@ for (const deviceScaleFactor of [1, 2]) {
           const module = await import(path)
           module.useAppTheme().setTheme(appearance)
         }, appearance)
-        await expect(logo).toHaveAttribute(
-          'src',
-          `/brand/mark-micro${appearance === 'dark' ? '-dark' : ''}.svg`
+        await expect(logo).toHaveAttribute('src', '/brand/app-icon.svg')
+        await expect(logo).toHaveCSS('width', '24px')
+        await expect(logo).toHaveCSS('height', '24px')
+        await expect(logo).toHaveScreenshot(
+          `brand-header-${appearance}-${deviceScaleFactor}x.png`,
+          {
+            maxDiffPixels: 0,
+            threshold: 0.1,
+            scale: 'device'
+          }
         )
-        await expect(logo).toHaveJSProperty('naturalWidth', 16)
-        await expect(logo).toHaveScreenshot(`brand-micro-${appearance}-${deviceScaleFactor}x.png`, {
-          maxDiffPixels: 0,
-          threshold: 0.1
-        })
+      }
+    })
+
+    test('the 16px favicon keeps its edge-to-edge ivory tile in both browser themes', async ({
+      page,
+      baseURL
+    }) => {
+      const src = new URL('/brand/favicon.svg', baseURL).href
+      await page.setContent(`<img src="${src}" alt="OpenPencil favicon" width="16" height="16">`)
+      const icon = page.getByRole('img', { name: 'OpenPencil favicon' })
+      await icon.evaluate((image: HTMLImageElement) => image.decode())
+      for (const colorScheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme })
+        await icon.evaluate((image, colorScheme) => {
+          image.style.colorScheme = colorScheme
+          image.style.backgroundColor = colorScheme === 'dark' ? '#282828' : '#ffffff'
+        }, colorScheme)
+        await expect(icon).toHaveScreenshot(
+          `brand-favicon-${colorScheme}-${deviceScaleFactor}x.png`,
+          {
+            maxDiffPixels: 0,
+            threshold: 0.1,
+            scale: 'device'
+          }
+        )
       }
     })
   })
@@ -44,6 +69,19 @@ test('the larger dark SVG retains its palette and subtle grid', async ({ page })
     svg.style.backgroundColor = '#282828'
   })
   await expect(mark).toHaveScreenshot('brand-mark-dark.png')
+})
+
+test('the ivory app tile works on light and dark surfaces', async ({ page }) => {
+  await page.goto('/brand/app-icon.svg')
+  const icon = page.locator('svg').first()
+  for (const appearance of ['light', 'dark'] as const) {
+    await icon.evaluate((svg, appearance) => {
+      svg.setAttribute('width', '128')
+      svg.setAttribute('height', '128')
+      svg.style.backgroundColor = appearance === 'dark' ? '#282828' : '#ffffff'
+    }, appearance)
+    await expect(icon).toHaveScreenshot(`brand-app-icon-${appearance}.png`)
+  }
 })
 
 test('browser icon declarations resolve without a duplicate manifest', async ({

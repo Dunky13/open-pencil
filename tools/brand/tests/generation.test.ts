@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { checkBrandAssets } from '#brand/check'
 import { repositoryRoot, webFiles } from '#brand/config'
+import { generateDesktop } from '#brand/desktop'
 import { canonicalIcns, icoSizes, validateFiles, validateMaskable } from '#brand/validate'
 import { generateWeb } from '#brand/web'
 import sharp from 'sharp'
@@ -83,6 +84,37 @@ describe('brand generation', () => {
     }
   })
 
+  test('shares the ivory rounded tile across profile and any-purpose PWA assets', async () => {
+    for (const [name, size] of [
+      ['brand/app-icon-1024.png', 1024],
+      ['brand/favicon-96x96.png', 96],
+      ['brand/pwa-192.png', 192],
+      ['brand/pwa-512.png', 512]
+    ] as const) {
+      const { data, info } = await sharp(file(name))
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+      expect([info.width, info.height]).toEqual([size, size])
+      expect(data[3]).toBe(0)
+      // No desktop-style inset: the ivory reaches the midpoint of each edge.
+      for (const [x, y] of [
+        [size / 2, 0],
+        [0, size / 2],
+        [size - 1, size / 2],
+        [size / 2, size - 1]
+      ]) {
+        const edge = (y * size + x) * 4
+        expect([...data.subarray(edge, edge + 4)]).toEqual([245, 245, 239, 255])
+      }
+      const offset = (Math.round((size * 80) / 1024) * size + size / 2) * 4
+      expect([...data.subarray(offset, offset + 4)]).toEqual([245, 245, 239, 255])
+    }
+    const svg = await sharp(file('brand/app-icon.svg')).ensureAlpha().raw().toBuffer()
+    const png = await sharp(file('brand/app-icon-1024.png')).ensureAlpha().raw().toBuffer()
+    expect(svg.equals(png)).toBe(true)
+  })
+
   test('rejects a transparent maskable icon', async () => {
     await expect(
       validateMaskable(await sharp(file('brand/mark.svg')).resize(512).png().toBuffer())
@@ -97,6 +129,16 @@ describe('brand generation', () => {
     wrong.set('apple-touch-icon.png', file('brand/pwa-512.png'))
     await expect(validateFiles(wrong, 'docs')).rejects.toThrow('apple-touch-icon.png')
   })
+
+  test('validates native icon and StoreLogo dimensions', async () => {
+    const desktop = await generateDesktop(repositoryRoot)
+    await validateFiles(desktop, 'desktop')
+    for (const name of ['icon.png', 'StoreLogo.png']) {
+      const wrong = new Map(desktop)
+      wrong.set(name, await sharp(file('brand/app-icon.svg')).resize(64, 64).png().toBuffer())
+      await expect(validateFiles(wrong, 'desktop')).rejects.toThrow(name)
+    }
+  }, 30_000)
 
   test('web output is byte-reproducible across repeated adapter instances', async () => {
     await checkBrandAssets(repositoryRoot, ['web'])

@@ -6,7 +6,7 @@
 - Both use real transparent counters and no white outline. Preserve the `data-part` attributes used for derived dark and monochrome artwork.
 - Dark artwork has its own brighter teal palette, lighter blue borders, soft-white handle centers, and a subtler grid. Monochrome artwork omits the grid.
 
-Edit these SVGs, not generated files. Platform backgrounds, padding, and dark colors live in `tools/brand/src/config.ts`. The approved main colors are defined by the SVG artwork. A light opaque square is used for Apple Touch and web tiles; maskable artwork stays inside the central 80%-diameter safe circle. Desktop icons have a separately composed rounded enclosure with transparent outside padding.
+Edit these SVGs, not generated files. Platform backgrounds, padding, and dark colors live in `tools/brand/src/config.ts`. The approved main colors are defined by the SVG artwork. The official app-icon variant puts the light-palette mark on an ivory (`#F5F5EF`) rounded tile that fills the image, with transparency only at the rounded corners. Native desktop assets retain their platform-specific outer margin. Desktop icons, any-purpose PWA icons, and larger in-app branding share this composition. The tile stays ivory in both themes; use `BrandMark` with `variant="app-icon"` for larger placements. The editor header uses a 24px tile. Favicons use the same tile with the optical micro master inside, in both browser themes. Generated `brand/app-icon.svg` and `brand/app-icon-1024.png` are suitable for profile images. Apple Touch keeps an opaque square for platform rounding; maskable artwork stays opaque and inside the central 80%-diameter safe circle.
 
 ## Generation
 

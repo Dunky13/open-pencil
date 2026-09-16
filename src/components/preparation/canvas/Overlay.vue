@@ -26,7 +26,7 @@ const progressSteps = computed(() => Math.round(progressValue.value ?? 0))
       class="absolute inset-0 z-50 flex items-center justify-center bg-canvas"
     >
       <div class="flex w-72 flex-col items-center gap-3 text-center">
-        <BrandMark variant="mark" :appearance="resolvedAppTheme" decorative class="size-8" />
+        <BrandMark variant="app-icon" :appearance="resolvedAppTheme" decorative class="size-12" />
         <div class="space-y-1">
           <p class="text-sm font-medium text-surface/80">{{ label }}</p>
           <p v-if="preparation.detail" class="truncate text-xs text-surface/45">

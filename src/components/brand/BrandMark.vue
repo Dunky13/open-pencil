@@ -12,10 +12,17 @@ const {
   class: className
 } = defineProps<BrandMarkProps>()
 
-const sources = { mark: 'mark', micro: 'mark-micro', mono: 'mark-mono' } as const
-const source = computed(
-  () => `/brand/${sources[variant]}${appearance === 'dark' ? '-dark' : ''}.svg`
-)
+const sources = {
+  mark: 'mark',
+  micro: 'mark-micro',
+  mono: 'mark-mono',
+  'app-icon': 'app-icon'
+} as const
+const source = computed(() => {
+  // The ivory tile owns its background and always uses the light palette.
+  const suffix = variant !== 'app-icon' && appearance === 'dark' ? '-dark' : ''
+  return `/brand/${sources[variant]}${suffix}.svg`
+})
 </script>
 
 <template>

@@ -19,7 +19,10 @@ export const brand = {
     'handle-surface': '#F4FBFA'
   },
   darkGridOpacity: 0.6,
+  tileInset: 64,
+  tileRadius: 200,
   appScale: 0.82,
+  tileScale: 0.88,
   maskableScale: 0.66
 } as const
 
@@ -28,6 +31,8 @@ export const webFiles = [
   'brand/favicon-96x96.png',
   'favicon.ico',
   'apple-touch-icon.png',
+  'brand/app-icon.svg',
+  'brand/app-icon-1024.png',
   'brand/mark.svg',
   'brand/mark-dark.svg',
   'brand/mark-micro.svg',

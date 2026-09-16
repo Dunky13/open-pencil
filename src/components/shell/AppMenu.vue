@@ -63,7 +63,12 @@ const subMenuCls = useMenuUI({ content: 'min-w-44' })
 <template>
   <div class="shrink-0 border-b border-border">
     <div class="flex items-center gap-2 px-2 py-1.5">
-      <BrandMark data-test-id="app-logo" :appearance="resolvedAppTheme" />
+      <BrandMark
+        data-test-id="app-logo"
+        variant="app-icon"
+        :appearance="resolvedAppTheme"
+        class="size-6"
+      />
       <input
         v-if="editingName"
         ref="nameInput"
