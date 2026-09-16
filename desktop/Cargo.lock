@@ -3313,6 +3313,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tauri-plugin-wdio-webdriver",
+ "url",
  "which",
  "zip 2.4.2",
  "zstd",

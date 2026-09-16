@@ -1,4 +1,6 @@
 mod credentials;
+#[allow(dead_code)] // wired up in the deep-link handler task
+mod deep_link;
 mod fig_container;
 mod fonts;
 mod http;
