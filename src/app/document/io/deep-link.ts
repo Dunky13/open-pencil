@@ -32,7 +32,7 @@ export function resolveDeepLinkFile(file: string, openPaths: string[]): string |
 }
 
 /** File-system entry points, injected so tests can drive the picker branch. */
-export interface DeepLinkIo {
+interface DeepLinkIo {
   choosePaths: () => Promise<string[]>
   openPath: (path: string) => Promise<void>
 }

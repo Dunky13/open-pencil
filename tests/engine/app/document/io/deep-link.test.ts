@@ -60,9 +60,8 @@ describe('openDeepLink', () => {
 
   test('cancels the link when the picked file is not the requested one', async () => {
     const choosePaths = mock(async () => ['/elsewhere/other.pen'])
-    const opened: string[] = []
-    const openPath = mock(async (path: string) => {
-      opened.push(path)
+    const openPath = mock(async (path: string): Promise<void> => {
+      throw new Error(`unexpected open of ${path}`)
     })
     const notices: string[] = []
 
@@ -78,7 +77,6 @@ describe('openDeepLink', () => {
 
     expect(choosePaths).toHaveBeenCalledTimes(1)
     expect(openPath).not.toHaveBeenCalled()
-    expect(opened).toEqual([])
     expect(notices).toHaveLength(2)
     expect(notices[1]).toContain('web/design/hikyo.pen')
   })
