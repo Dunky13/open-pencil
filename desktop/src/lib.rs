@@ -1,5 +1,4 @@
 mod credentials;
-#[allow(dead_code)] // wired up in the deep-link handler task
 mod deep_link;
 mod fig_container;
 mod fonts;
@@ -30,6 +29,8 @@ use window::show_main_window;
 #[derive(Clone, serde::Serialize)]
 struct PendingOpenFile {
     path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    node: Option<String>,
 }
 
 struct PendingOpen(Mutex<Vec<PendingOpenFile>>);
@@ -195,9 +196,47 @@ fn queue_open_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>, paths: Vec<Pat
             let _ = app.fs_scope().allow_file(&path);
             Some(PendingOpenFile {
                 path: path.to_string_lossy().into_owned(),
+                node: None,
             })
         })
         .collect::<Vec<_>>();
+
+    if files.is_empty() {
+        return;
+    }
+
+    if let Ok(mut pending) = app.state::<PendingOpen>().0.lock() {
+        pending.extend(files);
+    }
+
+    let _ = app.emit("open-associated-files", ());
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_focus();
+    }
+}
+
+/// The scheme filter is load-bearing: on macOS the plugin forwards every
+/// `RunEvent::Opened` URL here, including the `file://` URLs of a double-clicked
+/// document, which `queue_open_paths` already handles.
+///
+/// Relative paths from a link are deliberately not passed through
+/// `fs_scope().allow_file`: the frontend resolves them against open tabs or the
+/// file picker and allows the resolved absolute path there.
+fn queue_deep_links<R: tauri::Runtime>(app: &tauri::AppHandle<R>, urls: Vec<url::Url>) {
+    let files: Vec<PendingOpenFile> = urls
+        .iter()
+        .filter(|url| url.scheme() == "openpencil")
+        .filter_map(|url| match deep_link::parse_open_url(url) {
+            Ok(open) => Some(PendingOpenFile {
+                path: open.file,
+                node: open.node,
+            }),
+            Err(error) => {
+                eprintln!("[deep-link] refused {url}: {error:?}");
+                None
+            }
+        })
+        .collect();
 
     if files.is_empty() {
         return;
@@ -240,6 +279,8 @@ pub fn run() {
         }));
     }
 
+    builder = builder.plugin(tauri_plugin_deep_link::init());
+
     builder
         .manage(PendingOpen(Mutex::new(Vec::new())))
         .invoke_handler(tauri::generate_handler![
@@ -272,6 +313,20 @@ pub fn run() {
         })
         .setup(|app| {
             queue_open_paths(app.handle(), startup_open_paths());
+
+            use tauri_plugin_deep_link::DeepLinkExt;
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                let _ = app.deep_link().register_all();
+            }
+            // On macOS the plugin turns `RunEvent::Opened` into this callback, so
+            // `openpencil://` links are handled here only; the `Opened` arm below
+            // keeps handling file URLs.
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                queue_deep_links(&handle, event.urls());
+            });
+
             Ok(install_app_menu(app.handle(), &[])?)
         })
         .build(tauri::generate_context!())
