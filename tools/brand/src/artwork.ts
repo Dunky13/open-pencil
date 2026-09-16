@@ -23,7 +23,6 @@ export function recolor(
   for (const path of svg.find('[data-part]')) {
     if (mode !== 'dark') path.fill(mode === 'mono' ? brand.darkBackground : brand.background)
     else if (path.attr('data-part') === 'body') path.fill(brand.darkBody)
-    else if (path.attr('data-part') === 'graphite') path.fill(brand.darkGraphite)
   }
   return svg.svg()
 }

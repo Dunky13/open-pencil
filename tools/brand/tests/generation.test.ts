@@ -23,7 +23,7 @@ describe('brand generation', () => {
     expect(icoSizes(file('favicon.ico')).sort((a, b) => a - b)).toEqual([16, 32, 48])
   })
 
-  test('preserves transparent counters and draws the optical micro master on its own grid', async () => {
+  test('preserves transparent counters and renders the micro master at 16px', async () => {
     const main = await sharp(file('brand/mark.svg')).ensureAlpha().raw().toBuffer()
     expect(main[(80 * 256 + 130) * 4 + 3]).toBe(0)
     expect(main[(80 * 256 + 90) * 4 + 3]).toBe(255)
@@ -33,16 +33,23 @@ describe('brand generation', () => {
     expect(micro.length).toBe(16 * 16 * 4)
   })
 
-  test('uses one color for the small P body and pencil point in both themes', async () => {
-    for (const suffix of ['', '-dark']) {
-      const pixels = await sharp(file(`brand/mark-micro${suffix}.svg`))
-        .ensureAlpha()
-        .raw()
-        .toBuffer()
-      const body = (6 * 16 + 4) * 4
-      const point = (13 * 16 + 4) * 4
-      expect([...pixels.subarray(point, point + 4)]).toEqual([...pixels.subarray(body, body + 4)])
-      expect(pixels[point + 3]).toBe(255)
+  test('preserves blue handle borders and white centers in both themes and sizes', async () => {
+    for (const name of ['mark', 'mark-micro']) {
+      for (const suffix of ['', '-dark']) {
+        const pixels = await sharp(file(`brand/${name}${suffix}.svg`), { density: 1152 })
+          .resize(256, 256)
+          .ensureAlpha()
+          .raw()
+          .toBuffer()
+        for (const [x, y, rgba] of [
+          [54, 27, [255, 255, 255, 255]],
+          [202, 101, [255, 255, 255, 255]],
+          [name === 'mark' ? 38 : 32, 27, [0, 92, 255, 255]]
+        ] as const) {
+          const offset = (y * 256 + x) * 4
+          expect([...pixels.subarray(offset, offset + 4)]).toEqual([...rgba])
+        }
+      }
     }
   })
 

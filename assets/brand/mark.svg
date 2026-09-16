@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <path data-part="body" fill="#167C76" fill-rule="evenodd" d="M94 28H149C183 28 205 50 205 84V97C205 131 183 153 149 153H115V188H67V55C67 40 79 28 94 28ZM115 65V116H146C159 116 167 108 167 95V86C167 73 159 65 146 65Z"/>
-  <path data-part="wood" fill="#D7B58C" d="M67 188H115L91 228Z"/>
-  <path data-part="graphite" fill="#202B2D" d="M82 213H100L91 228Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="28 28 228 228">
+  <path data-part="body" fill="#009DFF" fill-rule="evenodd" d="M76 52H144C186 52 208 80 208 118S186 184 144 184H116V222L96 248L76 222ZM116 92V144H140C157 144 168 134 168 118S157 92 140 92Z"/>
+  <path data-part="facet" fill="#0675F8" d="M76 52H116V92H76Z"/>
+  <path data-part="facet" fill="#379EF4" d="M76 92H116V144H76Z"/>
+  <path data-part="facet" fill="#077DF6" d="M76 144H116V184H76Z"/>
+  <path data-part="facet" fill="#006BEE" d="M76 184H116V222L96 248L76 222Z"/>
+  <path data-part="handle" fill="#005CFF" d="M60 36H92V68H60Z"/>
+  <path data-part="handle-surface" fill="#FFFFFF" d="M66 42H86V62H66Z"/>
+  <path data-part="handle" fill="#005CFF" d="M224 118A16 16 0 1 1 192 118A16 16 0 1 1 224 118Z"/>
+  <path data-part="handle-surface" fill="#FFFFFF" d="M218 118A10 10 0 1 1 198 118A10 10 0 1 1 218 118Z"/>
 </svg>
