@@ -57,4 +57,29 @@ describe('openDeepLink', () => {
     expect(notices).toHaveLength(1)
     expect(notices[0]).toContain('Nope')
   })
+
+  test('cancels the link when the picked file is not the requested one', async () => {
+    const choosePaths = mock(async () => ['/elsewhere/other.pen'])
+    const opened: string[] = []
+    const openPath = mock(async (path: string) => {
+      opened.push(path)
+    })
+    const notices: string[] = []
+
+    await openDeepLink(
+      { path: 'web/design/hikyo.pen', node: 'Button' },
+      {
+        openPaths: () => [],
+        selectByName: () => true,
+        notify: (message) => notices.push(message)
+      },
+      { choosePaths, openPath }
+    )
+
+    expect(choosePaths).toHaveBeenCalledTimes(1)
+    expect(openPath).not.toHaveBeenCalled()
+    expect(opened).toEqual([])
+    expect(notices).toHaveLength(2)
+    expect(notices[1]).toContain('web/design/hikyo.pen')
+  })
 })
