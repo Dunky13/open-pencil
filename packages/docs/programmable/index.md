@@ -66,11 +66,13 @@ The desktop app registers `openpencil://`, so a published page — a Storybook s
 openpencil://open?file=web/design/hikyo.pen&node=Button/Large/Default
 ```
 
-`file` is a repository-relative path ending in `.pen` or `.fig`; absolute paths and `..` segments are refused. `node` is optional. Both values are URL-encoded, so a literal `+` must be sent as `%2B`, and a repeated key takes its last value.
+`file` is a repository-relative path ending in `.pen` or `.fig`; absolute paths and `..` segments are refused. `node` is optional. Both values are URL-encoded — path separators may stay literal, but a literal `+` must be sent as `%2B` — and a repeated key takes its last value.
 
-The app matches `file` against the paths of the open tabs as a whole trailing segment sequence, and focuses that tab. If no open tab matches, a file picker asks for the file once; the picked file must end with the same relative path, otherwise the link is cancelled. No path is joined onto a root and no filesystem access is granted beyond what the picker returns. An opened file joins the recent-files list, like any other file you open.
+The app matches `file` against the paths of the open tabs as a whole trailing segment sequence, and focuses that tab; the first open tab whose path ends with the requested path wins, which matters when two checkouts have the same file open. If no open tab matches, a file picker asks for the file once; the picked file must end with the same relative path, otherwise the link is cancelled. No path is joined onto a root and no filesystem access is granted beyond what the picker returns. An opened file joins the recent-files list, like any other file you open.
 
-With a node name, the app selects the layer of that exact name on the current page and zooms to it. An unknown name shows a notice and leaves the document open. Opening a file and selecting a layer is all the scheme can do.
+With a node name, the app selects every layer carrying that exact name on the current page and zooms the view to the whole selection. An unknown name shows a notice and leaves the document open. Opening a file and selecting layers is all the scheme can do.
+
+On macOS the scheme belongs to the installed app bundle, so links reach an installed build and not a `tauri dev` process. On Windows and Linux the link arrives through the deep-link plugin, including when the app is not running yet: the link is queued at startup and handled once the editor is ready.
 
 ## Why Open?
 
