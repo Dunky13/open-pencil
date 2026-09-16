@@ -105,6 +105,11 @@ mod tests {
             parse("openpencil://open?file=..%2Fa.pen"),
             Err(DeepLinkError::ParentSegment)
         );
+        // The dots themselves percent-encoded: decoding happens before the check.
+        assert_eq!(
+            parse("openpencil://open?file=%2E%2E%2Fa.pen"),
+            Err(DeepLinkError::ParentSegment)
+        );
     }
 
     #[test]
