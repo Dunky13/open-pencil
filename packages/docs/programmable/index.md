@@ -72,7 +72,7 @@ The app matches `file` against the paths of the open tabs as a whole trailing se
 
 With a node name, the app selects every layer carrying that exact name on the current page and zooms the view to the whole selection. An unknown name shows a notice and leaves the document open. Opening a file and selecting layers is all the scheme can do.
 
-On macOS the scheme belongs to the installed app bundle, so links reach an installed build and not a `tauri dev` process. On Windows and Linux the link arrives through the deep-link plugin, including when the app is not running yet: the link is queued at startup and handled once the editor is ready.
+On macOS the scheme belongs to the installed app bundle, so links reach an installed build and not a `tauri dev` process. On Windows and Linux the link arrives through the deep-link plugin, including when the app is not running yet: the link is queued at startup and handled once the editor is ready; on Linux the bundled desktop entry passes the link through `%U`.
 
 ## Why Open?
 

@@ -51,6 +51,14 @@
         "rank": "Alternate"
       }
     ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/main.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/main.desktop"
+      }
+    },
     "macOS": {
       "signingIdentity": "Developer ID Application: Danila Poyarkov (N7D7M3Q3CD)"
     }
