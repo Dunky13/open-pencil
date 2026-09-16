@@ -315,10 +315,6 @@ pub fn run() {
             queue_open_paths(app.handle(), startup_open_paths());
 
             use tauri_plugin_deep_link::DeepLinkExt;
-            #[cfg(any(windows, target_os = "linux"))]
-            {
-                let _ = app.deep_link().register_all();
-            }
             // On macOS the plugin turns `RunEvent::Opened` into this callback, so
             // `openpencil://` links are handled here only; the `Opened` arm below
             // keeps handling file URLs.
@@ -326,6 +322,18 @@ pub fn run() {
             app.deep_link().on_open_url(move |event| {
                 queue_deep_links(&handle, event.urls());
             });
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                if let Err(error) = app.deep_link().register_all() {
+                    eprintln!("[deep-link] register_all failed: {error}");
+                }
+                // A cold start passes the link as argv, which the plugin turns into
+                // its `deep-link://new-url` event during its own setup, before the
+                // listener above exists, so that first URL is only readable here.
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    queue_deep_links(app.handle(), urls);
+                }
+            }
 
             Ok(install_app_menu(app.handle(), &[])?)
         })
