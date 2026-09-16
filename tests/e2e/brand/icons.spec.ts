@@ -2,26 +2,35 @@ import { expect, test } from '@playwright/test'
 
 import { CanvasHelper } from '#tests/helpers/canvas'
 
-test('the editor uses the optical brand mark and follows the selected app theme', async ({
-  page
-}) => {
-  await page.goto('/?test')
-  await new CanvasHelper(page).waitForInit()
-  const logo = page.getByTestId('app-logo')
-  await expect(logo).toHaveAttribute('alt', 'OpenPencil')
-  for (const appearance of ['light', 'dark'] as const) {
-    await page.evaluate(async (appearance) => {
-      const path = '/src/app/shell/theme.ts'
-      const module = await import(path)
-      module.useAppTheme().setTheme(appearance)
-    }, appearance)
-    await expect(logo).toHaveAttribute(
-      'src',
-      `/brand/mark-micro${appearance === 'dark' ? '-dark' : ''}.svg`
-    )
-    await expect(logo).toHaveJSProperty('naturalWidth', 16)
-  }
-})
+for (const deviceScaleFactor of [1, 2]) {
+  test.describe(`brand at ${deviceScaleFactor}x`, () => {
+    test.use({ deviceScaleFactor })
+    test('the editor uses the optical brand mark and follows the selected app theme', async ({
+      page
+    }) => {
+      await page.goto('/?test')
+      await new CanvasHelper(page).waitForInit()
+      const logo = page.getByTestId('app-logo')
+      await expect(logo).toHaveAttribute('alt', 'OpenPencil')
+      for (const appearance of ['light', 'dark'] as const) {
+        await page.evaluate(async (appearance) => {
+          const path = '/src/app/shell/theme.ts'
+          const module = await import(path)
+          module.useAppTheme().setTheme(appearance)
+        }, appearance)
+        await expect(logo).toHaveAttribute(
+          'src',
+          `/brand/mark-micro${appearance === 'dark' ? '-dark' : ''}.svg`
+        )
+        await expect(logo).toHaveJSProperty('naturalWidth', 16)
+        await expect(logo).toHaveScreenshot(`brand-micro-${appearance}-${deviceScaleFactor}x.png`, {
+          maxDiffPixels: 0,
+          threshold: 0.1
+        })
+      }
+    })
+  })
+}
 
 test('the main SVG retains its approved appearance', async ({ page }) => {
   await page.goto('/brand/mark.svg')

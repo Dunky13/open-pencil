@@ -33,6 +33,19 @@ describe('brand generation', () => {
     expect(micro.length).toBe(16 * 16 * 4)
   })
 
+  test('uses one color for the small P body and pencil point in both themes', async () => {
+    for (const suffix of ['', '-dark']) {
+      const pixels = await sharp(file(`brand/mark-micro${suffix}.svg`))
+        .ensureAlpha()
+        .raw()
+        .toBuffer()
+      const body = (6 * 16 + 4) * 4
+      const point = (13 * 16 + 4) * 4
+      expect([...pixels.subarray(point, point + 4)]).toEqual([...pixels.subarray(body, body + 4)])
+      expect(pixels[point + 3]).toBe(255)
+    }
+  })
+
   test('keeps dark-mode favicon styling and separates light/dark UI artwork', () => {
     expect(file('brand/favicon.svg').toString()).toContain('prefers-color-scheme: dark')
     expect(file('brand/mark-dark.svg').equals(file('brand/mark.svg'))).toBe(false)

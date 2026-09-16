@@ -9,8 +9,8 @@ export type BrandTarget = (typeof targets)[number]
 export const brand = {
   background: '#F5F5EF',
   darkBackground: '#202B2D',
-  darkBody: '#56C3B1',
-  darkGraphite: '#F5F5EF',
+  darkBody: '#4EAAA3',
+  darkGraphite: '#B8C0BC',
   appScale: 0.82,
   maskableScale: 0.7
 } as const

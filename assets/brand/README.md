@@ -1,7 +1,7 @@
 # OpenPencil brand sources
 
-- `mark.svg` is the B+ pencil-P master: teal body, amber wood, graphite tip.
-- `mark-micro.svg` is an optically adjusted 16-unit master for small UI marks and favicons. Its larger counter and simpler tip are deliberate, not an automatic reduction.
+- `mark.svg` is the B+ pencil-P master: teal body (`#167C76`), natural tan wood (`#D7B58C`), graphite tip (`#202B2D`).
+- `mark-micro.svg` is an optically adjusted 16-unit master for small UI marks and favicons. The body, wood, and point form a single-color silhouette in both themes. Its larger counter and simpler tip are deliberate, not an automatic reduction.
 - Both use real transparent counters. Preserve the `data-part` attributes used for derived dark and monochrome artwork.
 
 Edit these SVGs, not generated files. Platform backgrounds, padding, and dark colors live in `tools/brand/src/config.ts`. The approved main colors are defined by the SVG artwork. A light opaque square is used for Apple Touch and web tiles; maskable artwork stays inside the central 80%-diameter safe circle. Desktop icons have a separately composed rounded enclosure with transparent outside padding.
