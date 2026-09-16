@@ -31,6 +31,11 @@ struct PendingOpenFile {
     path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     node: Option<String>,
+    /// Which producer queued this entry: a `openpencil://` link (true) or a file
+    /// association / argv path (false). The frontend cannot tell them apart from
+    /// the path alone — a canonicalized Windows path is verbatim (`\\?\C:\…`).
+    #[serde(rename = "deepLink")]
+    deep_link: bool,
 }
 
 struct PendingOpen(Mutex<Vec<PendingOpenFile>>);
@@ -189,18 +194,7 @@ fn open_paths_from_args(args: Vec<String>, cwd: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-fn queue_open_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>, paths: Vec<PathBuf>) {
-    let files = paths
-        .into_iter()
-        .filter_map(|path| {
-            let _ = app.fs_scope().allow_file(&path);
-            Some(PendingOpenFile {
-                path: path.to_string_lossy().into_owned(),
-                node: None,
-            })
-        })
-        .collect::<Vec<_>>();
-
+fn queue_pending<R: tauri::Runtime>(app: &tauri::AppHandle<R>, files: Vec<PendingOpenFile>) {
     if files.is_empty() {
         return;
     }
@@ -213,6 +207,22 @@ fn queue_open_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>, paths: Vec<Pat
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_focus();
     }
+}
+
+fn queue_open_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>, paths: Vec<PathBuf>) {
+    let files = paths
+        .into_iter()
+        .map(|path| {
+            let _ = app.fs_scope().allow_file(&path);
+            PendingOpenFile {
+                path: path.to_string_lossy().into_owned(),
+                node: None,
+                deep_link: false,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    queue_pending(app, files);
 }
 
 /// The scheme filter is load-bearing: on macOS the plugin forwards every
@@ -230,6 +240,7 @@ fn queue_deep_links<R: tauri::Runtime>(app: &tauri::AppHandle<R>, urls: Vec<url:
             Ok(open) => Some(PendingOpenFile {
                 path: open.file,
                 node: open.node,
+                deep_link: true,
             }),
             Err(error) => {
                 eprintln!("[deep-link] refused {url}: {error:?}");
@@ -238,18 +249,7 @@ fn queue_deep_links<R: tauri::Runtime>(app: &tauri::AppHandle<R>, urls: Vec<url:
         })
         .collect();
 
-    if files.is_empty() {
-        return;
-    }
-
-    if let Ok(mut pending) = app.state::<PendingOpen>().0.lock() {
-        pending.extend(files);
-    }
-
-    let _ = app.emit("open-associated-files", ());
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.set_focus();
-    }
+    queue_pending(app, files);
 }
 
 fn startup_open_paths() -> Vec<PathBuf> {

@@ -70,6 +70,8 @@ const fileAssociationCleanup = ref<(() => void) | null>(null)
 interface PendingOpenFile {
   path: string
   node?: string
+  /** True when a `openpencil://` link queued this entry, false for a file association. */
+  deepLink: boolean
 }
 
 function openDocumentPaths(): string[] {
@@ -92,9 +94,9 @@ async function openPendingAssociatedFiles(): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core')
   const files = await invoke<PendingOpenFile[]>('take_pending_open')
   for (const file of files) {
-    // Deep links carry a repo-relative path; file associations carry an absolute one.
-    const isRelative = !file.path.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(file.path)
-    if (isRelative || file.node) {
+    // Rust tags each entry by producer: a link's path is repo-relative and only the
+    // deep-link resolver may turn it into a real one.
+    if (file.deepLink) {
       await openDeepLink(file, {
         openPaths: openDocumentPaths,
         selectByName: selectNodeByName,
