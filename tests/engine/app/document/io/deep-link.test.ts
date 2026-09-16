@@ -27,6 +27,8 @@ describe('resolveDeepLinkFile', () => {
 describe('openDeepLink', () => {
   test('selects the node of an already open file without asking for a path', async () => {
     const selectByName = mock(() => true)
+    const choosePaths = mock(async (): Promise<string[]> => [])
+    const openPath = mock(async (): Promise<void> => undefined)
     const notices: string[] = []
 
     await openDeepLink(
@@ -35,14 +37,46 @@ describe('openDeepLink', () => {
         openPaths: () => ['/r/hikyo/web/design/hikyo.pen'],
         selectByName,
         notify: (message) => notices.push(message)
-      }
+      },
+      { choosePaths, openPath }
     )
 
+    expect(choosePaths).not.toHaveBeenCalled()
+    // The opener must receive the resolved absolute path, never the link's own string.
+    expect(openPath).toHaveBeenCalledTimes(1)
+    expect(openPath).toHaveBeenCalledWith('/r/hikyo/web/design/hikyo.pen')
+    expect(openPath).not.toHaveBeenCalledWith('web/design/hikyo.pen')
     expect(selectByName).toHaveBeenCalledWith('Button/Large/Default')
     expect(notices).toEqual([])
   })
 
+  test('opens the picked file and selects the node when no tab matches', async () => {
+    const choosePaths = mock(async () => ['/picked/web/design/hikyo.pen'])
+    const openPath = mock(async (): Promise<void> => undefined)
+    const selectByName = mock(() => true)
+    const notices: string[] = []
+
+    await openDeepLink(
+      { path: 'web/design/hikyo.pen', node: 'Button/Large/Default' },
+      {
+        openPaths: () => [],
+        selectByName,
+        notify: (message) => notices.push(message)
+      },
+      { choosePaths, openPath }
+    )
+
+    expect(choosePaths).toHaveBeenCalledTimes(1)
+    expect(openPath).toHaveBeenCalledTimes(1)
+    expect(openPath).toHaveBeenCalledWith('/picked/web/design/hikyo.pen')
+    expect(openPath).not.toHaveBeenCalledWith('web/design/hikyo.pen')
+    expect(selectByName).toHaveBeenCalledWith('Button/Large/Default')
+    expect(notices).toHaveLength(1)
+  })
+
   test('notifies when the node is missing', async () => {
+    const choosePaths = mock(async (): Promise<string[]> => [])
+    const openPath = mock(async (): Promise<void> => undefined)
     const notices: string[] = []
 
     await openDeepLink(
@@ -51,9 +85,11 @@ describe('openDeepLink', () => {
         openPaths: () => ['/r/hikyo/web/design/hikyo.pen'],
         selectByName: () => false,
         notify: (message) => notices.push(message)
-      }
+      },
+      { choosePaths, openPath }
     )
 
+    expect(openPath).toHaveBeenCalledWith('/r/hikyo/web/design/hikyo.pen')
     expect(notices).toHaveLength(1)
     expect(notices[0]).toContain('Nope')
   })
