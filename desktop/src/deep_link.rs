@@ -67,16 +67,17 @@ pub fn parse_open_url(url: &Url) -> Result<DeepLinkOpen, DeepLinkError> {
 /// the cost of being wrong there is a link that focuses a same-named file in a
 /// different directory case, and no filesystem access is granted by this.
 ///
-/// `candidate` is canonicalized first so a symlinked or `..`-laden tab path still
-/// compares by its real segments. A candidate that cannot be canonicalized (the
-/// file moved, or the volume went away) falls back to its literal segments rather
-/// than failing the match.
+/// `candidate` is canonicalized so a `..`-laden or symlink-prefixed tab path still
+/// compares by its real segments, and the literal path is tried as well: a symlink
+/// *inside* the trailing segments (a monorepo `packages/web -> ../apps/web`) makes
+/// the two disagree, and the link should match either spelling. A candidate that
+/// cannot be canonicalized at all — the file moved, or the volume went away — is
+/// compared by its literal segments alone rather than failing the match.
 #[tauri::command]
 pub fn path_matches_suffix(candidate: String, suffix: String) -> bool {
-    let canonical = Path::new(&candidate)
-        .canonicalize()
-        .unwrap_or_else(|_| PathBuf::from(&candidate));
-    path_ends_with_segments(&canonical, &suffix)
+    let literal = PathBuf::from(&candidate);
+    let canonical = literal.canonicalize().unwrap_or_else(|_| literal.clone());
+    path_ends_with_segments(&canonical, &suffix) || path_ends_with_segments(&literal, &suffix)
 }
 
 fn segment_eq(left: &str, right: &str) -> bool {
