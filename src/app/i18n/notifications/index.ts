@@ -30,7 +30,8 @@ export const notificationMessageDefaults = {
   storageConnectionFailed: params('Could not connect to storage: {error}'),
   deepLinkLocateFile: params('Locate “{file}” to follow this link.'),
   deepLinkCancelled: params('Link cancelled: expected a file ending in “{file}”.'),
-  deepLinkNodeNotFound: params('Node “{node}” was not found in “{file}”.')
+  deepLinkNodeNotFound: params('Node “{node}” was not found in “{file}”.'),
+  openQueuedFilesFailed: params('Could not open the files handed to OpenPencil: {error}')
 } as const
 
 const localeLoaders = {

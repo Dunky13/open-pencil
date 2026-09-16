@@ -10,11 +10,13 @@ import { startWebMCP } from '@/app/automation/webmcp/runtime'
 import { exposeCollaborationActions } from '@/app/browser-bridge'
 import { COLLAB_KEY, useCollab } from '@/app/collab/use'
 import { createDemoShapes } from '@/app/demo/document'
-import { openDeepLink } from '@/app/document/io/deep-link'
+import type { PendingOpenFile } from '@/app/document/io/pending-open'
+import { openPendingFiles } from '@/app/document/io/pending-open'
 import { openWebLinkFromLocation, withoutWebLinkParams } from '@/app/document/io/web-link'
+import { notificationMessages } from '@/app/i18n/notifications'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { useKeyboard } from '@/app/shell/keyboard/use'
-import { openDesignFileBatch, openFileFromPath, useEditorMenu } from '@/app/shell/menu/use'
+import { useEditorMenu } from '@/app/shell/menu/use'
 import { toast } from '@/app/shell/ui'
 import {
   activeTab,
@@ -70,11 +72,19 @@ useEventListener(
 
 const fileAssociationCleanup = ref<(() => void) | null>(null)
 
-interface PendingOpenFile {
-  path: string
-  node?: string
-  /** True when a `openpencil://` link queued this entry, false for a file association. */
-  deepLink: boolean
+/**
+ * A drain that fails wholesale — the `take_pending_open` invoke, the event binding —
+ * leaves the user staring at an app that ignored their double-click or their link.
+ * Per-entry failures are already toasted inside `openPendingFiles`; this is the outer
+ * net, and it must be visible, not console-only.
+ */
+function reportOpenFailure(error: unknown): void {
+  console.error('[Open With]', error)
+  toast.error(
+    notificationMessages.get().openQueuedFilesFailed({
+      error: error instanceof Error ? error.message : String(error)
+    })
+  )
 }
 
 function openDocumentPaths(): string[] {
@@ -110,23 +120,11 @@ function selectNodeByName(name: string): boolean {
 async function openPendingAssociatedFiles(): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core')
   const files = await invoke<PendingOpenFile[]>('take_pending_open')
-  // Serialised, but one failing entry must not swallow the rest of the batch:
-  // `openDesignFileBatch` is the per-item catch every other open path already uses,
-  // so a rejection is logged and toasted and the drain carries on to the next file.
-  await openDesignFileBatch(
-    files,
-    (file) => file.path.split(/[/\\]/).pop() ?? file.path,
-    // Rust tags each entry by producer: a link's path is repo-relative and only the
-    // deep-link resolver may turn it into a real one.
-    async (file) => {
-      if (!file.deepLink) return await openFileFromPath(file.path)
-      await openDeepLink(file, {
-        openPaths: openDocumentPaths,
-        selectByName: selectNodeByName,
-        notify: toast.info
-      })
-    }
-  )
+  await openPendingFiles(files, {
+    openPaths: openDocumentPaths,
+    selectByName: selectNodeByName,
+    notify: toast.info
+  })
 }
 
 // A deep link can block this drain on a modal file picker, so a second event must
@@ -134,9 +132,7 @@ async function openPendingAssociatedFiles(): Promise<void> {
 let pendingOpenDrain: Promise<void> = Promise.resolve()
 
 function drainPendingOpens(): Promise<void> {
-  pendingOpenDrain = pendingOpenDrain
-    .then(openPendingAssociatedFiles)
-    .catch((error) => console.error('[Open With]', error))
+  pendingOpenDrain = pendingOpenDrain.then(openPendingAssociatedFiles).catch(reportOpenFailure)
   return pendingOpenDrain
 }
 
@@ -158,7 +154,7 @@ onMounted(async () => {
   try {
     await bindAssociatedFileOpen()
   } catch (error) {
-    console.error('[Open With]', error)
+    reportOpenFailure(error)
   }
 
   // The browser twin of the deep link: the desktop build takes its links through the

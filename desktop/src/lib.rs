@@ -317,9 +317,10 @@ pub fn run() {
             queue_open_paths(app.handle(), startup_open_paths());
 
             use tauri_plugin_deep_link::DeepLinkExt;
-            // On macOS the plugin turns `RunEvent::Opened` into this callback, so
-            // `openpencil://` links are handled here only; the `Opened` arm below
-            // keeps handling file URLs.
+            // On macOS the plugin turns `RunEvent::Opened` into this callback, so every
+            // link that arrives while the app runs is handled here; the cold-start link
+            // arrives before this closure and is drained from `current` below. The
+            // `Opened` arm further down keeps handling file URLs.
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 queue_deep_links(&handle, event.urls());
@@ -329,12 +330,24 @@ pub fn run() {
                 if let Err(error) = app.deep_link().register_all() {
                     eprintln!("[deep-link] register_all failed: {error}");
                 }
-                // A cold start passes the link as argv, which the plugin turns into
-                // its `deep-link://new-url` event during its own setup, before the
-                // listener above exists, so that first URL is only readable here.
-                if let Ok(Some(urls)) = app.deep_link().get_current() {
-                    queue_deep_links(app.handle(), urls);
-                }
+            }
+            // Every desktop platform can deliver the launch link before this closure
+            // runs, which means before the listener above exists, and the plugin's
+            // `deep-link://new-url` emit then reaches nobody:
+            //
+            // - Windows / Linux: the link is argv, and the plugin parses it in its own
+            //   setup (`handle_cli_arguments`).
+            // - macOS: AppKit delivers the GetURL event *before* the app's setup. Traced
+            //   on a cold `open openpencil://…`: `RunEvent::Opened` at T+0.085 s, this
+            //   closure at T+0.342 s, and `on_open_url` never fired.
+            //
+            // In all three cases the URL survives only in the plugin's `current`, so it
+            // is read here. No link can be queued twice: `RunEvent::Opened` is dispatched
+            // on the main thread, the same thread this closure runs on, so a link cannot
+            // arrive between the registration above and this read — anything later goes
+            // to `on_open_url` and is no longer in `current` by the time it is read.
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                queue_deep_links(app.handle(), urls);
             }
 
             Ok(install_app_menu(app.handle(), &[])?)
