@@ -37,6 +37,15 @@ test('the main SVG retains its approved appearance', async ({ page }) => {
   await expect(page.locator('svg')).toHaveScreenshot('brand-mark.png')
 })
 
+test('the larger dark SVG retains its palette and subtle grid', async ({ page }) => {
+  await page.goto('/brand/mark-dark.svg')
+  const mark = page.locator('svg')
+  await mark.evaluate((svg) => {
+    svg.style.backgroundColor = '#282828'
+  })
+  await expect(mark).toHaveScreenshot('brand-mark-dark.png')
+})
+
 test('browser icon declarations resolve without a duplicate manifest', async ({
   page,
   request

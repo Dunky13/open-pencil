@@ -20,9 +20,16 @@ export function recolor(
   mode: 'dark' | 'mono' | 'mono-dark'
 ) {
   const svg = stringToSVG(source, adapter)
-  for (const path of svg.find('[data-part]')) {
-    if (mode !== 'dark') path.fill(mode === 'mono' ? brand.darkBackground : brand.background)
-    else if (path.attr('data-part') === 'body') path.fill(brand.darkBody)
+  if (mode === 'dark') {
+    for (const [part, color] of Object.entries(brand.darkPalette)) {
+      for (const path of svg.find(`[data-part="${part}"]`)) path.fill(color)
+    }
+    for (const grid of svg.find('[data-detail="grid"]')) grid.opacity(brand.darkGridOpacity)
+  } else {
+    for (const detail of svg.find('[data-detail]')) detail.remove()
+    for (const path of svg.find('[data-part]')) {
+      path.fill(mode === 'mono' ? brand.darkBackground : brand.background)
+    }
   }
   return svg.svg()
 }

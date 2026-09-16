@@ -41,10 +41,12 @@ describe('brand generation', () => {
           .ensureAlpha()
           .raw()
           .toBuffer()
+        const center = suffix ? [244, 251, 250, 255] : [255, 255, 255, 255]
+        const border = suffix ? [67, 140, 255, 255] : [0, 92, 255, 255]
         for (const [x, y, rgba] of [
-          [54, 27, [255, 255, 255, 255]],
-          [202, 101, [255, 255, 255, 255]],
-          [name === 'mark' ? 38 : 32, 27, [0, 92, 255, 255]]
+          [54, 27, center],
+          [202, 101, center],
+          [name === 'mark' ? 38 : 32, 27, border]
         ] as const) {
           const offset = (y * 256 + x) * 4
           expect([...pixels.subarray(offset, offset + 4)]).toEqual([...rgba])
@@ -57,6 +59,28 @@ describe('brand generation', () => {
     expect(file('brand/favicon.svg').toString()).toContain('prefers-color-scheme: dark')
     expect(file('brand/mark-dark.svg').equals(file('brand/mark.svg'))).toBe(false)
     expect(file('brand/mark-micro-dark.svg').equals(file('brand/mark-micro.svg'))).toBe(false)
+  })
+
+  test('keeps monochrome artwork flat rather than retaining the decorative grid', async () => {
+    for (const suffix of ['', '-dark']) {
+      const pixels = await sharp(file(`brand/mark-mono${suffix}.svg`))
+        .ensureAlpha()
+        .raw()
+        .toBuffer()
+      const colors = new Set<string>()
+      for (let offset = 0; offset < pixels.length; offset += 4) {
+        if (pixels[offset + 3] === 255)
+          colors.add(pixels.subarray(offset, offset + 3).toString('hex'))
+      }
+      expect(colors.size).toBeGreaterThan(0)
+      const expected = Buffer.from(suffix ? 'f5f5ef' : '202b2d', 'hex')
+      for (const color of colors) {
+        // Overlapping antialiased edges can round a channel down by one.
+        expect(
+          Buffer.from(color, 'hex').every((channel, i) => Math.abs(channel - expected[i]) <= 1)
+        ).toBe(true)
+      }
+    }
   })
 
   test('rejects a transparent maskable icon', async () => {

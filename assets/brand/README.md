@@ -1,9 +1,10 @@
 # OpenPencil brand sources
 
-- `mark.svg` is the blue pencil-P master: a long pointed stem, tonal blocks, and white editing handles with blue borders (`#005CFF`). The square sits at the top-left; the circle sits on the outer curve.
-- `mark-micro.svg` renders at 16px and preserves the main P's geometry and proportions. Its square and circular handles are enlarged for small sizes, with the circle slightly larger than the square.
+- `mark.svg` is the teal pencil-P master: a long pointed stem, contrasting teal blocks, a faint clipped pixel grid, and white editing handles with blue borders (`#005CFF`). The square sits at the top-left; the circle sits on the outer curve.
+- `mark-micro.svg` renders at 16px and preserves the main P's geometry and proportions. Its square and circular handles are enlarged for small sizes, with the circle slightly larger than the square. It has no grid.
 - Both use the same tight `28 28 228 228` viewBox. Keep the P geometry aligned between masters; optical adjustments belong to the handles, not the letter's proportions.
-- Both use real transparent counters. Preserve the `data-part` attributes used for derived dark and monochrome artwork.
+- Both use real transparent counters and no white outline. Preserve the `data-part` attributes used for derived dark and monochrome artwork.
+- Dark artwork has its own brighter teal palette, lighter blue borders, soft-white handle centers, and a subtler grid. Monochrome artwork omits the grid.
 
 Edit these SVGs, not generated files. Platform backgrounds, padding, and dark colors live in `tools/brand/src/config.ts`. The approved main colors are defined by the SVG artwork. A light opaque square is used for Apple Touch and web tiles; maskable artwork stays inside the central 80%-diameter safe circle. Desktop icons have a separately composed rounded enclosure with transparent outside padding.
 
