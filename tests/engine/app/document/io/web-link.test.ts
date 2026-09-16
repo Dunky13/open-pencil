@@ -1,6 +1,11 @@
 import { describe, expect, mock, test } from 'bun:test'
 
-import { openWebLink, parseWebOpenParams } from '@/app/document/io/web-link'
+import {
+  openWebLink,
+  openWebLinkFromLocation,
+  parseWebOpenParams,
+  withoutWebLinkParams
+} from '@/app/document/io/web-link'
 
 const RAW = 'https://raw.githubusercontent.com/o/r/master/design/hikyo.pen'
 
@@ -39,6 +44,25 @@ describe('parseWebOpenParams', () => {
     expect(parseWebOpenParams('?node=Button')).toBeNull()
     expect(parseWebOpenParams('')).toBeNull()
     expect(parseWebOpenParams('?file=&node=Button')).toBeNull()
+  })
+
+  test('reads the extension off the path, not the query', () => {
+    expect(parseWebOpenParams('?file=https%3A%2F%2Fh%2Fa.svg%3Fx%3D.pen')).toBeNull()
+    expect(parseWebOpenParams('?file=https%3A%2F%2Fh%2Fa.pen%3Fv%3D1')?.file.href).toBe(
+      'https://h/a.pen?v=1'
+    )
+  })
+
+  test('accepts an uppercase extension, which the reader registry lowercases anyway', () => {
+    expect(parseWebOpenParams('?file=https%3A%2F%2Fh%2Fa.PEN')?.file.href).toBe('https://h/a.PEN')
+  })
+
+  test('takes the last value of a repeated key, like the desktop parser', () => {
+    const target = parseWebOpenParams(
+      '?file=https%3A%2F%2Fh%2Fa.pen&file=https%3A%2F%2Fh%2Fb.pen&node=A&node=B'
+    )
+    expect(target?.file.href).toBe('https://h/b.pen')
+    expect(target?.node).toBe('B')
   })
 
   test('ignores an empty node', () => {
@@ -87,5 +111,70 @@ describe('openWebLink', () => {
 
     expect(notices).toHaveLength(1)
     expect(notices[0]).toContain('Button/Large/Default')
+  })
+})
+
+describe('openWebLinkFromLocation', () => {
+  const link = `?tab=2&file=${encodeURIComponent(RAW)}&node=Button%2FLarge%2FDefault#frag`
+
+  test('strips the params before the document is fetched', async () => {
+    const order: string[] = []
+    const open = mock(async (): Promise<void> => {
+      order.push('open')
+    })
+
+    await openWebLinkFromLocation(
+      link,
+      () => order.push('strip'),
+      { selectByName: () => true, notify: () => undefined },
+      { open }
+    )
+
+    expect(order).toEqual(['strip', 'open'])
+  })
+
+  test('strips a refused link too, and opens nothing', async () => {
+    const open = mock(async (): Promise<void> => undefined)
+    const strip = mock(() => undefined)
+
+    await openWebLinkFromLocation(
+      '?file=http%3A%2F%2Fexample.com%2Fa.pen&node=X',
+      strip,
+      { selectByName: () => true, notify: () => undefined },
+      { open }
+    )
+
+    expect(strip).toHaveBeenCalledTimes(1)
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  test('does nothing at all when neither param is present', async () => {
+    const open = mock(async (): Promise<void> => undefined)
+    const strip = mock(() => undefined)
+
+    await openWebLinkFromLocation(
+      '?tab=2',
+      strip,
+      { selectByName: () => true, notify: () => undefined },
+      { open }
+    )
+
+    expect(strip).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
+  })
+})
+
+describe('withoutWebLinkParams', () => {
+  test('removes both link params and keeps everything else', () => {
+    expect(
+      withoutWebLinkParams({ file: 'https://h/a.pen', node: 'A', tab: '2', test: '' })
+    ).toEqual({
+      tab: '2',
+      test: ''
+    })
+  })
+
+  test('leaves a query with no link params untouched', () => {
+    expect(withoutWebLinkParams({ renderer: 'tiled' })).toEqual({ renderer: 'tiled' })
   })
 })

@@ -22,7 +22,7 @@ export interface DeepLinkActions {
 }
 
 /** A link is attacker-supplied text; a toast is not a place for 4 KB of it. */
-function clamp(value: string): string {
+export function clamp(value: string): string {
   return value.length > 120 ? `${value.slice(0, 119)}…` : value
 }
 

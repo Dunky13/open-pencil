@@ -2,7 +2,7 @@
 import { useHead } from '@unhead/vue'
 import { useEventListener } from '@vueuse/core'
 import { onMounted, onUnmounted, provide, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { makeFigmaFromStore } from '@/app/automation/bridge/figma-factory'
 import { startMCPRuntime, stopMCPRuntime } from '@/app/automation/mcp/runtime'
@@ -11,7 +11,7 @@ import { exposeCollaborationActions } from '@/app/browser-bridge'
 import { COLLAB_KEY, useCollab } from '@/app/collab/use'
 import { createDemoShapes } from '@/app/demo/document'
 import { openDeepLink } from '@/app/document/io/deep-link'
-import { openWebLinkFromLocation } from '@/app/document/io/web-link'
+import { openWebLinkFromLocation, withoutWebLinkParams } from '@/app/document/io/web-link'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { useKeyboard } from '@/app/shell/keyboard/use'
 import { openFileFromPath, useEditorMenu } from '@/app/shell/menu/use'
@@ -37,6 +37,7 @@ import TabBar from '@/components/TabBar.vue'
 import { IS_BROWSER } from '@/constants'
 
 const route = useRoute()
+const router = useRouter()
 const createdInitialTab = tabCount() === 0
 const shouldCreateHome =
   route.path === '/' &&
@@ -80,6 +81,20 @@ function openDocumentPaths(): string[] {
   return getTabsSnapshot()
     .map((tab) => tab.store.getSourceIdentity().path)
     .filter((path): path is string => path !== null)
+}
+
+/**
+ * Drops the link params through the router, not through `history` directly: the router
+ * keeps its own copy of the current URL in `history.state` and re-applies it on the next
+ * navigation, which would put `file` and `node` back into the entry. Route and hash are
+ * preserved, so the link works on `/`, `/share/:id` and `/demo` alike.
+ */
+function stripWebLinkParams(): void {
+  void router.replace({
+    path: route.path,
+    query: withoutWebLinkParams(route.query),
+    hash: route.hash
+  })
 }
 
 /** Exact name match on the current page, the same lookup the find_nodes tool does. */
@@ -146,7 +161,10 @@ onMounted(async () => {
   // deep-link plugin above, so only a real browser reads them off the address bar.
   if (IS_BROWSER && !isTauri()) {
     try {
-      await openWebLinkFromLocation({ selectByName: selectNodeByName, notify: toast.info })
+      await openWebLinkFromLocation(window.location.search, stripWebLinkParams, {
+        selectByName: selectNodeByName,
+        notify: (message, level) => (level === 'error' ? toast.error : toast.info)(message)
+      })
     } catch (error) {
       console.error('[Web link]', error)
     }
