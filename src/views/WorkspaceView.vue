@@ -4,20 +4,24 @@ import { useEventListener } from '@vueuse/core'
 import { onMounted, onUnmounted, provide, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
+import { makeFigmaFromStore } from '@/app/automation/bridge/figma-factory'
 import { startMCPRuntime, stopMCPRuntime } from '@/app/automation/mcp/runtime'
 import { startWebMCP } from '@/app/automation/webmcp/runtime'
 import { exposeCollaborationActions } from '@/app/browser-bridge'
 import { COLLAB_KEY, useCollab } from '@/app/collab/use'
 import { createDemoShapes } from '@/app/demo/document'
+import { openDeepLink } from '@/app/document/io/deep-link'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { useKeyboard } from '@/app/shell/keyboard/use'
 import { openFileFromPath, useEditorMenu } from '@/app/shell/menu/use'
+import { toast } from '@/app/shell/ui'
 import {
   activeTab,
   createDocumentInCurrentTab,
   createHomeTab,
   createTab,
   getActiveStore,
+  getTabsSnapshot,
   tabCount
 } from '@/app/tabs'
 import { isTauri } from '@/app/tauri/env'
@@ -65,21 +69,61 @@ const fileAssociationCleanup = ref<(() => void) | null>(null)
 
 interface PendingOpenFile {
   path: string
+  node?: string
+}
+
+function openDocumentPaths(): string[] {
+  return getTabsSnapshot()
+    .map((tab) => tab.store.getSourceIdentity().path)
+    .filter((path): path is string => path !== null)
+}
+
+/** Exact name match on the current page, the same lookup the find_nodes tool does. */
+function selectNodeByName(name: string): boolean {
+  const store = getActiveStore()
+  const matches = makeFigmaFromStore(store).currentPage.findAll((node) => node.name === name)
+  if (matches.length === 0) return false
+  store.select(matches.map((node) => node.id))
+  store.zoomToSelection()
+  return true
 }
 
 async function openPendingAssociatedFiles(): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core')
   const files = await invoke<PendingOpenFile[]>('take_pending_open')
-  for (const file of files) await openFileFromPath(file.path)
+  for (const file of files) {
+    // Deep links carry a repo-relative path; file associations carry an absolute one.
+    const isRelative = !file.path.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(file.path)
+    if (isRelative || file.node) {
+      await openDeepLink(file, {
+        openPaths: openDocumentPaths,
+        selectByName: selectNodeByName,
+        notify: toast.info
+      })
+    } else {
+      await openFileFromPath(file.path)
+    }
+  }
+}
+
+// A deep link can block this drain on a modal file picker, so a second event must
+// queue behind the first: overlapping drains would prompt twice for the same file.
+let pendingOpenDrain: Promise<void> = Promise.resolve()
+
+function drainPendingOpens(): Promise<void> {
+  pendingOpenDrain = pendingOpenDrain
+    .then(openPendingAssociatedFiles)
+    .catch((error) => console.error('[Open With]', error))
+  return pendingOpenDrain
 }
 
 async function bindAssociatedFileOpen(): Promise<void> {
   if (!isTauri()) return
   const { listen } = await import('@tauri-apps/api/event')
   fileAssociationCleanup.value = await listen('open-associated-files', () => {
-    void openPendingAssociatedFiles().catch((error) => console.error('[Open With]', error))
+    void drainPendingOpens()
   })
-  await openPendingAssociatedFiles()
+  await drainPendingOpens()
 }
 
 let stopWebMCP: (() => void) | undefined

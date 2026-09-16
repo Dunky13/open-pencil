@@ -27,7 +27,10 @@ export const notificationMessageDefaults = {
   vectorizeFailed: params('{provider} could not vectorize this image: {error}'),
   operationFailed: params('Operation failed: {error}'),
   storageConnected: 'Connected. Storage namespace is ready.',
-  storageConnectionFailed: params('Could not connect to storage: {error}')
+  storageConnectionFailed: params('Could not connect to storage: {error}'),
+  deepLinkLocateFile: params('Locate “{file}” to follow this link.'),
+  deepLinkCancelled: params('Link cancelled: expected a file ending in “{file}”.'),
+  deepLinkNodeNotFound: params('Node “{node}” was not found in “{file}”.')
 } as const
 
 const localeLoaders = {
