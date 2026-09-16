@@ -72,6 +72,16 @@ The app matches `file` against the paths of the open tabs as a whole trailing se
 
 With a node name, the app selects every layer carrying that exact name on the current page and zooms the view to the whole selection. An unknown name shows a notice and leaves the document open. Opening a file and selecting layers is all the scheme can do.
 
+The web app takes the same link from its own address bar:
+
+```
+https://app.openpencil.dev/?file=https://raw.githubusercontent.com/open-pencil/open-pencil/master/tests/fixtures/pencil_button.pen&node=Button/Large/Default
+```
+
+Here `file` is an absolute `https:` URL ending in `.pen` or `.fig` — the web app has no filesystem, so a relative path, an `http:` URL or any other extension is refused with a console warning and nothing else. `node` behaves exactly as above: the same exact-name selection and zoom, the same notice when no layer carries the name. Both values are URL-encoded, and a literal `+` must be sent as `%2B`.
+
+The browser fetches the file cross-origin, so the host must allow it: `raw.githubusercontent.com` sends `Access-Control-Allow-Origin: *` and works. The request carries no credentials and refuses to follow redirects, which keeps an `https:` link from being bounced to a plaintext one — a `https://github.com/<owner>/<repo>/raw/...` URL redirects to `raw.githubusercontent.com` and is therefore refused, so link to the raw host directly. `file` and `node` are stripped from the address bar as soon as they are read, so a reload does not re-open the document and a copied URL carries no link payload.
+
 On macOS the scheme belongs to the installed app bundle, so links reach an installed build and not a `tauri dev` process. On Windows and Linux the link arrives through the deep-link plugin, including when the app is not running yet: the link is queued at startup and handled once the editor is ready; on Linux the bundled desktop entry passes the link through `%U`.
 
 ## Why Open?

@@ -11,6 +11,7 @@ import { exposeCollaborationActions } from '@/app/browser-bridge'
 import { COLLAB_KEY, useCollab } from '@/app/collab/use'
 import { createDemoShapes } from '@/app/demo/document'
 import { openDeepLink } from '@/app/document/io/deep-link'
+import { openWebLinkFromLocation } from '@/app/document/io/web-link'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { useKeyboard } from '@/app/shell/keyboard/use'
 import { openFileFromPath, useEditorMenu } from '@/app/shell/menu/use'
@@ -33,6 +34,7 @@ import FontStatusBanner from '@/components/font-status/FontStatusBanner.vue'
 import HomeWorkspace from '@/components/home/HomeWorkspace.vue'
 import RenameSelectionDialog from '@/components/selection/RenameSelectionDialog.vue'
 import TabBar from '@/components/TabBar.vue'
+import { IS_BROWSER } from '@/constants'
 
 const route = useRoute()
 const createdInitialTab = tabCount() === 0
@@ -138,6 +140,16 @@ onMounted(async () => {
     await bindAssociatedFileOpen()
   } catch (error) {
     console.error('[Open With]', error)
+  }
+
+  // The browser twin of the deep link: the desktop build takes its links through the
+  // deep-link plugin above, so only a real browser reads them off the address bar.
+  if (IS_BROWSER && !isTauri()) {
+    try {
+      await openWebLinkFromLocation({ selectByName: selectNodeByName, notify: toast.info })
+    } catch (error) {
+      console.error('[Web link]', error)
+    }
   }
 })
 

@@ -43,14 +43,20 @@ fileDialog.onChange((files) => {
 
 if (IS_BROWSER && 'window' in globalThis) {
   setOpenPencilOpenFileHandler(async (path: string) => {
-    const resourceURL = resolveBrowserFileURL(path)
-    const response = await fetch(resourceURL)
-    const blob = await response.blob()
-    const name = resourceURL.pathname.split('/').pop() ?? 'file.fig'
-    assertSupportedDesignFile(name)
-    const file = new File([blob], name, { type: 'application/octet-stream' })
-    await openFileInNewTab(file, undefined, resourceURL.href)
+    await openBrowserFileFromURL(resolveBrowserFileURL(path))
   })
+}
+
+/** Fetches a document over HTTP and opens it in a new tab. Browser builds only. */
+export async function openBrowserFileFromURL(url: URL, init?: RequestInit): Promise<void> {
+  const response = await fetch(url, init)
+  if (!response.ok)
+    throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
+  const blob = await response.blob()
+  const name = url.pathname.split('/').pop() ?? 'file.fig'
+  assertSupportedDesignFile(name)
+  const file = new File([blob], name, { type: 'application/octet-stream' })
+  await openFileInNewTab(file, undefined, url.href)
 }
 
 function isSupportedDesignFile(fileName: string): boolean {
