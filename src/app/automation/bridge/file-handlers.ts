@@ -4,6 +4,7 @@ import {
   type AutomationTarget
 } from '@/app/automation/bridge/target'
 import { resolveBrowserFileURL } from '@/app/document/io/browser'
+import { MAX_REMOTE_DOCUMENT_BYTES, readBodyWithLimit } from '@/app/shell/menu/files'
 import { openFileFromPath } from '@/app/shell/menu/use'
 import { closeTab, createTab, getActiveStore, getTabById, openFileInNewTab } from '@/app/tabs'
 import { isTauri } from '@/app/tauri/env'
@@ -59,10 +60,16 @@ export async function handleOpenFile(_target: AutomationTarget, args: unknown): 
     await openFileFromPath(path)
   } else {
     const resourceURL = resolveBrowserFileURL(path)
-    const response = await fetch(resourceURL)
+    // Same 64 MiB ceiling as every other fetched document: an automation client is not
+    // more trusted than a link, and buffering an unbounded body exhausts the tab either way.
+    const controller = new AbortController()
+    const response = await fetch(resourceURL, { signal: controller.signal })
     if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`)
     const name = resourceURL.pathname.split('/').pop() ?? 'file.fig'
-    const file = new File([await response.blob()], name)
+    const blob = await readBodyWithLimit(response, MAX_REMOTE_DOCUMENT_BYTES, () =>
+      controller.abort()
+    )
+    const file = new File([blob], name)
     await openFileInNewTab(file, undefined, resourceURL.href)
   }
   const target = resolveAutomationTarget(getActiveStore(), undefined)

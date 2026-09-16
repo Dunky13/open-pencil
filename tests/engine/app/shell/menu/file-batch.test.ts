@@ -77,6 +77,17 @@ describe('readBodyWithLimit', () => {
     expect(abort).toHaveBeenCalledTimes(1)
   })
 
+  test('accepts a body of exactly the cap and refuses one byte more', async () => {
+    const abort = mock(() => undefined)
+
+    const exact = await readBodyWithLimit(streamed([MIB / 2, MIB / 2]), MIB, abort)
+    expect(exact.size).toBe(MIB)
+    expect(abort).not.toHaveBeenCalled()
+
+    await expect(readBodyWithLimit(streamed([MIB, 1]), MIB, abort)).rejects.toThrow('exceeds')
+    expect(abort).toHaveBeenCalledTimes(1)
+  })
+
   test('counts the bytes that arrive, not a Content-Length claim', async () => {
     const response = streamed([MIB, MIB])
     response.headers.set('Content-Length', '1')

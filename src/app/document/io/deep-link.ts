@@ -3,8 +3,10 @@
 // the first open tab whose path ends with it. The segment comparison is the
 // filesystem's, not JavaScript's: the desktop build asks Rust, which folds ASCII
 // case on macOS and Windows and compares exactly on Linux. Otherwise the user picks it once
-// per link and the pick must end with the same relative path. The opened file
-// lands in the recent-files list like any other file opened from the app. No fs
+// per link and the pick must end with the same relative path. A file the link
+// opens — the picked one — lands in the recent-files list like any other file
+// opened from the app; focusing an already open tab opens nothing and so does
+// not touch the list. No fs
 // scope is widened here: the dialog plugin scopes what it returns, and nothing
 // else is ever read from disk.
 import { notificationMessages } from '@/app/i18n/notifications'

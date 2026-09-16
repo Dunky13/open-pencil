@@ -53,7 +53,7 @@ if (IS_BROWSER && 'window' in globalThis) {
  * whatever the host sends would let one URL exhaust the tab's memory. Well past any
  * real design file: the largest `.fig` fixtures in this repo are a few MB.
  */
-const MAX_REMOTE_DOCUMENT_BYTES = 64 * 1024 * 1024
+export const MAX_REMOTE_DOCUMENT_BYTES = 64 * 1024 * 1024
 
 /**
  * Buffers a response body, aborting as soon as it exceeds `maxBytes`. The body is read
@@ -92,7 +92,16 @@ export async function readBodyWithLimit(
 
 /** Fetches a document over HTTP and opens it in a new tab. Browser builds only. */
 export async function openBrowserFileFromURL(url: URL, init?: RequestInit): Promise<void> {
+  // The cap needs a controller of its own, so a caller's signal is chained onto it
+  // rather than replaced: dropping it would leave the caller unable to cancel.
   const controller = new AbortController()
+  if (init?.signal) {
+    if (init.signal.aborted) controller.abort(init.signal.reason)
+    else
+      init.signal.addEventListener('abort', () => controller.abort(init.signal?.reason), {
+        once: true
+      })
+  }
   const response = await fetch(url, { ...init, signal: controller.signal })
   if (!response.ok)
     throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
