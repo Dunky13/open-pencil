@@ -39,7 +39,9 @@ pub fn parse_open_url(url: &Url) -> Result<DeepLinkOpen, DeepLinkError> {
     if file.starts_with('/') || file.starts_with('\\') || is_windows_abs {
         return Err(DeepLinkError::AbsolutePath);
     }
-    if file.split(['/', '\\']).any(|seg| seg == "..") {
+    // `.` is refused here as well as in `path_ends_with_segments`: a link that carried one
+    // would be queued and then could never match an open tab or a picked file.
+    if file.split(['/', '\\']).any(|seg| seg == ".." || seg == ".") {
         return Err(DeepLinkError::ParentSegment);
     }
     let lower = file.to_ascii_lowercase();
@@ -158,6 +160,16 @@ mod tests {
     #[test]
     fn missing_file() {
         assert_eq!(parse("openpencil://open"), Err(DeepLinkError::MissingFile));
+    }
+
+    #[test]
+    fn dot_segment_refused() {
+        // The matcher refuses `.` too, so accepting it here would queue a link that can
+        // never resolve against an open tab or a picked file.
+        assert_eq!(
+            parse("openpencil://open?file=web%2F.%2Fdesign.pen"),
+            Err(DeepLinkError::ParentSegment)
+        );
     }
 
     #[test]

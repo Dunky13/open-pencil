@@ -12,7 +12,6 @@
     "dialog:allow-open",
     "updater:default",
     "process:default",
-    
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-html",
     "clipboard-manager:allow-write-text",
