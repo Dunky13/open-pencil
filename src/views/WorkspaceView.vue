@@ -12,7 +12,7 @@ import { createDemoShapes } from '@/app/demo/document'
 import type { PendingOpenFile } from '@/app/document/io/pending-open'
 import { openPendingFiles } from '@/app/document/io/pending-open'
 import { openWebLinkFromLocation, withoutWebLinkParams } from '@/app/document/io/web-link'
-import { selectNodesByName } from '@/app/editor/selection/select-by-name'
+import { focusNodesByName } from '@/app/editor/selection/focus'
 import { notificationMessages } from '@/app/i18n/notifications'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { useKeyboard } from '@/app/shell/keyboard/use'
@@ -107,9 +107,9 @@ function stripWebLinkParams(): void {
   })
 }
 
-/** Exact name match on the current page; see `selectNodesByName`. */
+/** The action both link handlers take; see `focusNodesByName`. */
 function selectNodeByName(name: string): boolean {
-  return selectNodesByName(getActiveStore(), name)
+  return focusNodesByName(getActiveStore(), name)
 }
 
 async function openPendingAssociatedFiles(): Promise<void> {
