@@ -85,7 +85,14 @@ export async function openDeepLink(
     if (!(await io.activateTab(known))) await io.openPath(known)
   } else {
     actions.notify(messages.deepLinkLocateFile({ file: clamp(target.path) }))
-    const picked = await resolveDeepLinkFile(target.path, await io.choosePaths(), io.matchesSuffix)
+    const chosen = await io.choosePaths()
+    // Dismissing the picker is not the same as picking the wrong file, so it gets its
+    // own notice instead of one that talks about a file the user never chose.
+    if (chosen.length === 0) {
+      actions.notify(messages.deepLinkPickerDismissed)
+      return
+    }
+    const picked = await resolveDeepLinkFile(target.path, chosen, io.matchesSuffix)
     if (!picked) {
       actions.notify(messages.deepLinkCancelled({ file: clamp(target.path) }))
       return

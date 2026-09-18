@@ -163,6 +163,28 @@ describe('openDeepLink', () => {
     expect(notices[0]).toContain('Nope')
   })
 
+  test('reports a dismissed picker as nothing chosen, not a wrong file', async () => {
+    const deps = io({ choosePaths: mock(async () => []) })
+    const notices: string[] = []
+
+    await openDeepLink(
+      { path: 'web/design/hikyo.pen', node: 'Button' },
+      {
+        openPaths: () => [],
+        selectByName: () => true,
+        notify: (message) => notices.push(message)
+      },
+      deps
+    )
+
+    expect(deps.choosePaths).toHaveBeenCalledTimes(1)
+    expect(deps.openPath).not.toHaveBeenCalled()
+    expect(deps.activateTab).not.toHaveBeenCalled()
+    // The locate prompt, then a dismissal notice that does not name an unchosen file.
+    expect(notices).toHaveLength(2)
+    expect(notices[1]).toBe('Link cancelled: no file was chosen.')
+  })
+
   test('cancels the link when the picked file is not the requested one', async () => {
     const deps = io({
       choosePaths: mock(async () => ['/elsewhere/other.pen']),

@@ -3,6 +3,8 @@
 // against open tabs; the web app has no filesystem, so `file` is an absolute `https:`
 // URL the browser fetches cross-origin, without credentials and without following a
 // redirect. Nothing else is reachable: no `http:`, no `file:`, no other extension.
+import { omit } from 'es-toolkit'
+
 import { clamp } from '@/app/document/io/deep-link'
 import { notificationMessages } from '@/app/i18n/notifications'
 import { openBrowserFileFromURL } from '@/app/shell/menu/files'
@@ -87,10 +89,7 @@ export async function openWebLink(
  * Router-free on purpose: the router types live in the view, this is just the filter.
  */
 export function withoutWebLinkParams<T>(query: Record<string, T>): Record<string, T> {
-  const rest = { ...query }
-  delete rest.file
-  delete rest.node
-  return rest
+  return omit(query, ['file', 'node'])
 }
 
 /**

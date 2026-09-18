@@ -23,6 +23,7 @@
   "xPath": "XPath",
   "xPaths": "XPath",
   "deepLinkLocateFile": "このリンクを開くには「{file}」を指定してください。",
+  "deepLinkPickerDismissed": "リンクをキャンセルしました。ファイルが選択されていません。",
   "deepLinkCancelled": "リンクをキャンセルしました。「{file}」で終わるファイルが必要です。",
   "deepLinkNodeNotFound": "「{file}」にレイヤー「{node}」が見つかりませんでした。",
   "openQueuedFilesFailed": "OpenPencil に渡されたファイルを開けませんでした: {error}"

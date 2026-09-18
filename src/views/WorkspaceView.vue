@@ -4,7 +4,6 @@ import { useEventListener } from '@vueuse/core'
 import { onMounted, onUnmounted, provide, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { makeFigmaFromStore } from '@/app/automation/bridge/figma-factory'
 import { startMCPRuntime, stopMCPRuntime } from '@/app/automation/mcp/runtime'
 import { startWebMCP } from '@/app/automation/webmcp/runtime'
 import { exposeCollaborationActions } from '@/app/browser-bridge'
@@ -13,6 +12,7 @@ import { createDemoShapes } from '@/app/demo/document'
 import type { PendingOpenFile } from '@/app/document/io/pending-open'
 import { openPendingFiles } from '@/app/document/io/pending-open'
 import { openWebLinkFromLocation, withoutWebLinkParams } from '@/app/document/io/web-link'
+import { selectNodesByName } from '@/app/editor/selection/select-by-name'
 import { notificationMessages } from '@/app/i18n/notifications'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { useKeyboard } from '@/app/shell/keyboard/use'
@@ -107,14 +107,9 @@ function stripWebLinkParams(): void {
   })
 }
 
-/** Exact name match on the current page, the same lookup the find_nodes tool does. */
+/** Exact name match on the current page; see `selectNodesByName`. */
 function selectNodeByName(name: string): boolean {
-  const store = getActiveStore()
-  const matches = makeFigmaFromStore(store).currentPage.findAll((node) => node.name === name)
-  if (matches.length === 0) return false
-  store.select(matches.map((node) => node.id))
-  store.zoomToSelection()
-  return true
+  return selectNodesByName(getActiveStore(), name)
 }
 
 async function openPendingAssociatedFiles(): Promise<void> {
