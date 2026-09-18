@@ -66,7 +66,7 @@ The desktop app registers `openpencil://`, so a published page — a Storybook s
 openpencil://open?file=web/design/hikyo.pen&node=Button/Large/Default
 ```
 
-`file` is a repository-relative path ending in `.pen` or `.fig`; absolute paths and `..` segments are refused. `node` is optional. Both values are URL-encoded — path separators may stay literal, but a literal `+` must be sent as `%2B` — and a repeated key takes its last value.
+`file` is a repository-relative path ending in `.pen` or `.fig`; absolute paths and `.` or `..` segments are refused. `node` is optional. Both values are URL-encoded — path separators may stay literal, but a literal `+` must be sent as `%2B` — and a repeated key takes its last value.
 
 The app matches `file` against the paths of the open tabs as a whole trailing segment sequence, and focuses that tab without re-reading the document, so a file that moved or turned unreadable since it opened still gets its layer selected. The first open tab whose path ends with the requested path wins, which matters when two checkouts have the same file open. Segments are compared the way the platform's filesystem does: ASCII-case-insensitively on macOS and Windows, exactly on Linux, so `Web/Design/hikyo.pen` and `web/design/hikyo.pen` are the same file on a Mac and two different ones on Linux. If no open tab matches, a file picker asks for the file once; the picked file must end with the same relative path, otherwise the link is cancelled. No path is joined onto a root and no filesystem access is granted beyond what the picker returns. A file the link actually opens — the picked one — joins the recent-files list like any other file you open; focusing a tab that was already open does not touch the list, because nothing was opened.
 

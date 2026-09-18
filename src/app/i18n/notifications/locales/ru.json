@@ -21,5 +21,9 @@
   "nodeID": "ID узла",
   "nodeIDs": "ID узлов",
   "xPath": "XPath",
-  "xPaths": "XPath"
+  "xPaths": "XPath",
+  "deepLinkLocateFile": "Укажите «{file}», чтобы перейти по этой ссылке.",
+  "deepLinkCancelled": "Ссылка отменена: ожидался файл с окончанием «{file}».",
+  "deepLinkNodeNotFound": "Слой «{node}» не найден в «{file}».",
+  "openQueuedFilesFailed": "Не удалось открыть файлы, переданные OpenPencil: {error}"
 }
