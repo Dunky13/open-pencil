@@ -3,7 +3,11 @@ import { useFileDialog } from '@vueuse/core'
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 
 import { setOpenPencilOpenFileHandler } from '@/app/browser-bridge'
-import { resolveBrowserFileURL } from '@/app/document/io/browser'
+import {
+  resolveBrowserFileURL,
+  MAX_REMOTE_DOCUMENT_BYTES,
+  readBoundedBody
+} from '@/app/document/io/browser'
 import { notificationMessages } from '@/app/i18n/notifications'
 import { rememberRecentFile } from '@/app/recent-files'
 import { toast } from '@/app/shell/ui'
@@ -48,69 +52,26 @@ if (IS_BROWSER && 'window' in globalThis) {
   })
 }
 
-/**
- * Ceiling on a document fetched from a URL. A link can point anywhere, and buffering
- * whatever the host sends would let one URL exhaust the tab's memory. Well past any
- * real design file: the largest `.fig` fixtures in this repo are a few MB.
- */
-export const MAX_REMOTE_DOCUMENT_BYTES = 64 * 1024 * 1024
-
-/**
- * Buffers a response body, aborting as soon as it exceeds `maxBytes`. The body is read
- * as a stream and counted chunk by chunk: `Content-Length` is the sender's claim, absent
- * on a chunked response and free to lie on any other, so the cap is enforced on the bytes
- * that actually arrive. `abort` cancels the request itself, so an oversized body stops
- * downloading instead of being drained to its end.
- */
-export async function readBodyWithLimit(
-  response: Response,
-  maxBytes: number,
-  abort: () => void
-): Promise<Blob> {
-  if (!response.body) throw new Error('Failed to fetch file: the response carried no body')
-  const chunks: Uint8Array[] = []
-  let size = 0
-  const reader = response.body.getReader()
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      size += value.byteLength
-      if (size > maxBytes) {
-        abort()
-        throw new Error(`exceeds ${Math.floor(maxBytes / (1024 * 1024))} MiB`)
-      }
-      chunks.push(value)
-    }
-  } finally {
-    reader.releaseLock()
-  }
-  // Copied per chunk: a stream chunk's buffer is typed `ArrayBufferLike`, which a Blob
-  // does not accept, and the Blob would copy the bytes anyway.
-  return new Blob(chunks.map((chunk) => new Uint8Array(chunk)))
-}
-
 /** Fetches a document over HTTP and opens it in a new tab. Browser builds only. */
 export async function openBrowserFileFromURL(url: URL, init?: RequestInit): Promise<void> {
-  // The cap needs a controller of its own, so a caller's signal is chained onto it
+  // The cap needs a controller of its own, so a caller's signal is combined with it
   // rather than replaced: dropping it would leave the caller unable to cancel.
   const controller = new AbortController()
-  if (init?.signal) {
-    if (init.signal.aborted) controller.abort(init.signal.reason)
-    else
-      init.signal.addEventListener('abort', () => controller.abort(init.signal?.reason), {
-        once: true
-      })
-  }
-  const response = await fetch(url, { ...init, signal: controller.signal })
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, controller.signal])
+    : controller.signal
+  const response = await fetch(url, { ...init, signal })
   if (!response.ok)
     throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
-  const blob = await readBodyWithLimit(response, MAX_REMOTE_DOCUMENT_BYTES, () =>
-    controller.abort()
-  )
+  const bytes = await readBoundedBody(response, MAX_REMOTE_DOCUMENT_BYTES, {
+    onExceeded: () => controller.abort()
+  })
+  if (bytes.byteLength === 0) {
+    throw new Error('Failed to fetch file: the response carried no body')
+  }
   const name = url.pathname.split('/').pop() ?? 'file.fig'
   assertSupportedDesignFile(name)
-  const file = new File([blob], name, { type: 'application/octet-stream' })
+  const file = new File([bytes], name, { type: 'application/octet-stream' })
   await openFileInNewTab(file, undefined, url.href)
 }
 
@@ -178,8 +139,9 @@ export async function openFileFromPath(path: string) {
 export async function activateTabForPath(path: string): Promise<boolean> {
   const tab = await findTabByFileIdentity(getTabsSnapshot(), { handle: null, path })
   if (!tab) return false
-  switchTab(tab.id)
-  return true
+  // The tab can close while the identity lookup awaits, and `switchTab` then does nothing:
+  // reporting success here would make the caller skip opening the file.
+  return switchTab(tab.id)
 }
 
 export async function openFileDialog() {
