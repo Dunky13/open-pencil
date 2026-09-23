@@ -138,7 +138,9 @@ describe('exportStorybook', () => {
     ])
     expect(rendered).toHaveLength(2)
     const content = String(files[2]?.content)
-    expect(content).toContain(`import design1 from "./Button.design/Large.png"`)
+    expect(content).toContain(
+      `const design1 = new URL("./Button.design/Large.png", import.meta.url).href`
+    )
     expect(content).toContain(`{ name: 'Design', type: 'image', url: design1 }`)
     // A second `Size=Large` layer makes that name ambiguous, so the story links to the set.
     const large = content.split('\n').find((line) => line.startsWith('export const Large'))

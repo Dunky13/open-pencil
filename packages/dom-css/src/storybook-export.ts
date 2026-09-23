@@ -244,8 +244,9 @@ function storyModule(group: StoryGroup, context: ModuleContext): string {
     ]
     return `export const ${names[i]}: Story = { name: ${lit(label)}, ${designParameter(design)}args: ${argsLiteral(variant.values)} }`
   })
+  // `new URL(…, import.meta.url)` is bundled like an import but needs no ambient PNG types.
   const imageImports = (images ?? []).map(
-    (path, i) => `import design${i} from ${lit(`./${path}`)}\n`
+    (path, i) => `const design${i} = new URL(${lit(`./${path}`)}, import.meta.url).href\n`
   )
 
   return `${generatedStoryHeader(context.source ?? 'a design document')}

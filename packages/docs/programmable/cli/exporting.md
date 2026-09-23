@@ -106,9 +106,9 @@ Stories render the component as HTML with inline styles, like `-f html`, so they
 Stories carry `parameters.design` entries for [`@storybook/addon-designs`](https://github.com/storybookjs/addon-designs):
 
 - **OpenPencil** — when the document path is inside the current directory, an [`openpencil://` link](../index#url-scheme) that opens the document in the desktop app and selects the variant, or the component set when another layer shares the variant's name.
-- **Design** — a 2× PNG of the variant, written to `<Name>.design/` next to the story and imported, so Vite bundles it. Copy the parameter onto the story of your own component to compare the implementation with the design. `--no-design-images` skips rendering; font substitution follows `--font-policy` as in raster export.
+- **Design** — a 2× PNG of the variant, written to `<Name>.design/` next to the story and referenced with `new URL(…, import.meta.url)`, so Vite bundles it. Copy the parameter onto the story of your own component to compare the implementation with the design. `--no-design-images` skips rendering; font substitution follows `--font-policy` as in raster export.
 
-`-o` names the output directory. Each export replaces the stories and design images a previous export generated there — including those of components since deleted or renamed — and leaves other files alone. `--watch` keeps the command running and re-exports whenever the document is saved, so Storybook's hot reload follows the design; a save that cannot be read is reported and the watch continues.
+`-o` names the output directory. Each export replaces the stories and design images a previous export of the same document generated there — including those of components since deleted or renamed — and refuses to overwrite any other story. Stories record the document path relative to the current directory, so run the export from the same directory each time. `--watch` keeps the command running and re-exports whenever the document is saved, so Storybook's hot reload follows the design; a save that cannot be read is reported and the watch continues. A missing `--page` or a `--font-policy strict` substitution still ends the command.
 
 ## Live App Mode
 

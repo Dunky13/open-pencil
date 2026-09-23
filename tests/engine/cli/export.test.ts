@@ -1,5 +1,5 @@
 import { expect, setDefaultTimeout, test } from 'bun:test'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -297,7 +297,7 @@ test('export CLI writes Storybook stories with design images', async () => {
   const story = await Bun.file(join(output, 'Badge.stories.ts')).text()
   expect(story).toContain("from '@storybook/vue3-vite'")
   expect(story).toContain('title: "Library/Badge"')
-  expect(story).toContain('import design0 from "./Badge.design/Default.png"')
+  expect(story).toContain('new URL("./Badge.design/Default.png", import.meta.url).href')
   const png = new Uint8Array(await Bun.file(join(output, 'Badge.design/Default.png')).arrayBuffer())
   expect(new TextDecoder().decode(png.slice(1, 4))).toBe('PNG')
 })
@@ -318,6 +318,7 @@ test('export CLI replaces stale generated stories and keeps hand-written ones', 
   expect(exitCode).toBe(0)
   expect(await Bun.file(join(output, 'Old.stories.ts')).exists()).toBe(false)
   expect(await Bun.file(join(output, 'New.stories.ts')).exists()).toBe(true)
+  expect((await readdir(output)).some((entry) => entry.endsWith('.design'))).toBe(false)
   expect(await Bun.file(join(output, 'Mine.stories.ts')).text()).toBe('export default {}\n')
 })
 
