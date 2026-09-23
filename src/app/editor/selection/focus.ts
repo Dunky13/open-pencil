@@ -7,7 +7,7 @@ export interface FocusStore {
   select: (ids: string[]) => void
   zoomToSelection: () => void
   /** Loads a page's layers without showing it; imported pages load them on first visit. */
-  preparePage: (pageId: string) => Promise<unknown>
+  loadPageNodes: (pageId: string) => Promise<void>
   switchPage: (pageId: string) => Promise<void>
 }
 
@@ -55,7 +55,7 @@ export async function focusNodesByName(store: FocusStore, name: string): Promise
   if (here.length > 0) return focusNodes(store, here)
   for (const page of store.graph.getPages()) {
     if (page.id === store.state.currentPageId) continue
-    await store.preparePage(page.id)
+    await store.loadPageNodes(page.id)
     const ids = findNodesByName(store.graph, page.id, name)
     if (ids.length === 0) continue
     await store.switchPage(page.id)

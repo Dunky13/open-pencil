@@ -31,6 +31,21 @@ export function clamp(value: string): string {
 }
 
 /**
+ * Runs a link's layer search. Searching can load other pages after the file opened, so a
+ * failure is reported as an error rather than as a layer the document does not carry.
+ */
+export async function searchLinkedNode(
+  selectByName: (name: string) => boolean | Promise<boolean>,
+  name: string
+): Promise<{ found: boolean } | { error: string }> {
+  try {
+    return { found: await selectByName(name) }
+  } catch (error) {
+    return { error: clamp(error instanceof Error ? error.message : String(error)) }
+  }
+}
+
+/**
  * Whether `candidate` ends with `relative` as whole path segments, decided by the
  * `path_matches_suffix` Tauri command: it canonicalizes the candidate and compares
  * its trailing segments the way the platform's filesystem does. Doing this in JS
@@ -99,9 +114,11 @@ export async function openDeepLink(
     }
     await io.openPath(picked)
   }
-  if (target.node && !(await actions.selectByName(target.node))) {
+  if (!target.node) return
+  const search = await searchLinkedNode(actions.selectByName, target.node)
+  if ('error' in search) actions.notify(messages.operationFailed(search))
+  else if (!search.found)
     actions.notify(
       messages.deepLinkNodeNotFound({ node: clamp(target.node), file: clamp(target.path) })
     )
-  }
 }

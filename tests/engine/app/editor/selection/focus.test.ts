@@ -20,7 +20,7 @@ function harness() {
     state: { currentPageId: pageId },
     select: (ids) => void selected.push(ids),
     zoomToSelection: () => void zooms++,
-    preparePage: async (id) => void prepared.push(id),
+    loadPageNodes: async (id) => void prepared.push(id),
     switchPage: async (id) => {
       store.state.currentPageId = id
     }
