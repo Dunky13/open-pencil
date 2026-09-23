@@ -126,7 +126,7 @@ function applyTextProps(node: SceneNode, pen: PenNode, ctx: VarContext): void {
 function resolveSizing(pen: PenNode, ctx: VarContext) {
   const isTextLike = pen.type === 'text' || pen.type === 'icon_font'
   const defaultSize = isTextLike ? 20 : 100
-  const defaultW = isTextLike && pen.width === undefined ? 10_000 : defaultSize
+  const defaultW = isTextLike && pen.width === undefined ? 0 : defaultSize
   const w = parseSize(pen.width, defaultW, ctx)
   const h = parseSize(pen.height, defaultSize, ctx)
   const layout = mapLayoutMode(pen)
