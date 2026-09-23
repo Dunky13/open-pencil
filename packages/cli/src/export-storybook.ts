@@ -1,5 +1,5 @@
 import { existsSync, watch } from 'node:fs'
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
@@ -59,37 +59,61 @@ async function conflict(target: string, owner: Owner): Promise<Error> {
   )
 }
 
+const DESIGN_IMAGE = /new URL\(("(?:[^"\\]|\\.)*"), import\.meta\.url\)/g
+
+/** The design images a generated story references, relative to the output directory. */
+function referencedImages(content: string): string[] {
+  return [...content.matchAll(DESIGN_IMAGE)].flatMap((match) => {
+    let url: unknown
+    try {
+      url = JSON.parse(match[1] ?? '')
+    } catch {
+      return []
+    }
+    return typeof url === 'string' && /^\.\/[^/]+\.design\/[^/]+\.png$/.test(url)
+      ? [url.slice(2)]
+      : []
+  })
+}
+
+function isErrorCode(error: unknown, ...codes: string[]): boolean {
+  return error instanceof Error && 'code' in error && codes.includes(String(error.code))
+}
+
 /**
- * Removes the stories and design images a previous export of the same document (and
- * page, for a one-page export) generated, so a component deleted or renamed in the
- * document does not linger. Refuses the export before removing anything when it would
- * overwrite any other file: a hand-written story, another document's, or a stray image.
+ * Removes the stories, and the design images they reference, that a previous export of
+ * the same document (and page, for a one-page export) generated, so a component deleted
+ * or renamed in the document does not linger. Refuses the export before removing
+ * anything when it would overwrite any other file: a hand-written story, another
+ * document's, or an image it did not generate. Other files in a `.design` folder stay.
  */
 async function replaceGeneratedStories(
   outputDir: string,
   owner: Owner,
   paths: string[]
 ): Promise<void> {
-  const owned: string[] = []
+  const owned = new Set<string>()
   for (const entry of await readdir(outputDir)) {
     if (!entry.endsWith('.stories.ts')) continue
-    const generated = generatedStorySource(await readFile(join(outputDir, entry), 'utf8'))
-    if (
-      generated?.source === owner.source &&
-      (owner.page === undefined || generated.page === owner.page)
-    )
-      owned.push(entry.replace(/\.stories\.ts$/, ''))
+    const content = await readFile(join(outputDir, entry), 'utf8')
+    const generated = generatedStorySource(content)
+    if (generated?.source !== owner.source) continue
+    if (owner.page !== undefined && generated.page !== owner.page) continue
+    owned.add(entry)
+    for (const image of referencedImages(content)) owned.add(image)
   }
-  const isOwned = (path: string) =>
-    owned.some((base) => path === `${base}.stories.ts` || path.startsWith(`${base}.design/`))
   for (const path of paths) {
     const target = join(outputDir, path)
-    if (isOwned(path) || !existsSync(target)) continue
+    if (owned.has(path) || !existsSync(target)) continue
     throw await conflict(target, owner)
   }
-  for (const base of owned) {
-    await rm(join(outputDir, `${base}.stories.ts`))
-    await rm(join(outputDir, `${base}.design`), { recursive: true, force: true })
+  for (const path of owned) await rm(join(outputDir, path), { force: true })
+  for (const folder of new Set([...owned].map(dirname))) {
+    if (folder === '.') continue
+    // Only a folder the removal emptied goes; anything else someone put there stays.
+    await rmdir(join(outputDir, folder)).catch((error: unknown) => {
+      if (!isErrorCode(error, 'ENOTEMPTY', 'ENOENT', 'EEXIST')) throw error
+    })
   }
 }
 

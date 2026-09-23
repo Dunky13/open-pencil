@@ -448,6 +448,32 @@ test('export CLI refuses to overwrite a design image it did not generate', async
   expect(await Bun.file(join(output, 'Badge.design/Default.png')).text()).toBe('mine')
 })
 
+test('export CLI keeps files it did not generate in a design folder', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
+  const figPath = await writeComponentFixture(dir, ['Badge'])
+  const output = join(dir, 'stories')
+  const args = ['--format', 'storybook', '--font-policy', 'allow', '--output', output]
+  expect((await runOpenPencilCLI(['export', figPath, ...args])).exitCode).toBe(0)
+  await Bun.write(join(output, 'Badge.design/notes.txt'), 'mine')
+
+  expect((await runOpenPencilCLI(['export', figPath, ...args])).exitCode).toBe(0)
+
+  expect((await readdir(join(output, 'Badge.design'))).sort()).toEqual(['Default.png', 'notes.txt'])
+})
+
+test('export CLI removes the design folder of a deleted component', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
+  const output = join(dir, 'stories')
+  const args = ['--format', 'storybook', '--font-policy', 'allow', '--output', output]
+  const badge = await writeComponentFixture(dir, ['Badge'])
+  expect((await runOpenPencilCLI(['export', badge, ...args])).exitCode).toBe(0)
+
+  const chip = await writeComponentFixture(dir, ['Chip'])
+  expect((await runOpenPencilCLI(['export', chip, ...args])).exitCode).toBe(0)
+
+  expect((await readdir(output)).sort()).toEqual(['Chip.design', 'Chip.stories.ts'])
+})
+
 test('export CLI --watch re-exports stories when the document changes', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
   const figPath = await writeComponentFixture(dir, ['First'])
