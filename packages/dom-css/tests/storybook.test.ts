@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import { exportStorybook } from '../src/index'
+import { exportStorybook, generatedStorySource } from '../src/index'
 
 function buttonGraph() {
   const graph = new SceneGraph()
@@ -145,5 +145,48 @@ describe('exportStorybook', () => {
     // A second `Size=Large` layer makes that name ambiguous, so the story links to the set.
     const large = content.split('\n').find((line) => line.startsWith('export const Large'))
     expect(large).toContain('node=Button"')
+  })
+
+  it('gives same-named components on a page distinct titles', async () => {
+    const graph = new SceneGraph()
+    const page = graph.addPage('Library')
+    graph.createNode('COMPONENT', page.id, { name: 'Card', width: 10, height: 10 })
+    graph.createNode('COMPONENT', page.id, { name: 'Card', width: 20, height: 10 })
+
+    const files = await exportStorybook(graph, { framework: 'html' })
+    expect(files.map((file) => file.path)).toEqual(['Card.stories.ts', 'Card2.stories.ts'])
+    expect(String(files[1]?.content)).toContain('title: "Library/Card 2"')
+
+    // A one-page export names its files as the full export does.
+    const other = graph.addPage('Other')
+    graph.createNode('COMPONENT', other.id, { name: 'Card', width: 30, height: 10 })
+    const pageFiles = await exportStorybook(graph, { framework: 'html', pageId: other.id })
+    expect(pageFiles.map((file) => file.path)).toEqual(['Card3.stories.ts'])
+  })
+
+  it('records its source in a header that survives CRLF and refuses line breaks', async () => {
+    const { graph } = buttonGraph()
+    const [story] = await exportStorybook(graph, { framework: 'html', source: 'design/ui.fig' })
+    const content = String(story?.content)
+
+    expect(generatedStorySource(content)).toBe('design/ui.fig')
+    expect(generatedStorySource(content.replaceAll('\n', '\r\n'))).toBe('design/ui.fig')
+    expect(generatedStorySource('export default {}\n')).toBeNull()
+    for (const source of ['a\n.fig', 'a\r.fig', 'a\u2028.fig']) {
+      await expect(exportStorybook(graph, { source })).rejects.toThrow('line break')
+    }
+  })
+
+  it('omits the link when neither the variant nor its set has a unique name', async () => {
+    const { graph } = buttonGraph()
+    const other = graph.addPage('Other')
+    graph.createNode('FRAME', other.id, { name: 'Button' })
+    graph.createNode('FRAME', other.id, { name: 'Size=Small' })
+
+    const [story] = await exportStorybook(graph, { framework: 'html', linkPath: 'ui.fig' })
+    const content = String(story?.content)
+    expect(content).toContain('node=Size%3DLarge')
+    expect(content).not.toContain('node=Button')
+    expect(content).not.toContain('node=Size%3DSmall')
   })
 })

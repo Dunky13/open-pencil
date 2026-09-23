@@ -311,7 +311,8 @@ export default defineCommand({
     },
     page: {
       type: 'string',
-      description: 'Export a specific page by name (FIG defaults to the whole document)',
+      description:
+        'Export a specific page by name (FIG, PPTX, and Storybook default to the whole document)',
       required: false
     },
     node: {

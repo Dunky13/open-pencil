@@ -21,7 +21,6 @@ export interface ExportStorybookOptions {
 
 interface StoryVariant {
   values: string[]
-  html: string
   node: SceneNode
 }
 
@@ -60,7 +59,8 @@ const GENERATED_HEADER =
 
 /** The document a story file was generated from, or null for any other file. */
 export function generatedStorySource(content: string): string | null {
-  return GENERATED_HEADER.exec(content.split('\n', 1)[0] ?? '')?.[1] ?? null
+  // A checkout with `core.autocrlf` turns the generated LF endings into CRLF.
+  return GENERATED_HEADER.exec(content.split(/\r?\n/, 1)[0] ?? '')?.[1] ?? null
 }
 
 const lit = (value: string) => JSON.stringify(value)
@@ -102,7 +102,6 @@ function componentSetGroup(graph: SceneGraph, page: SceneNode, set: SceneNode): 
     .filter((child) => child.type === 'COMPONENT' && isExported(child))
   const variants = components.map((component) => ({
     values: definitions.map((def) => component.componentPropertyValues[def.name] ?? ''),
-    html: nodeHTML(graph, component),
     node: component
   }))
   const props = definitions.map((def, index) => ({
@@ -120,7 +119,7 @@ function componentGroup(graph: SceneGraph, page: SceneNode, component: SceneNode
     title: `${page.name}/${component.name}`,
     name: component.name,
     props: [],
-    variants: [{ values: [], html: nodeHTML(graph, component), node: component }],
+    variants: [{ values: [], node: component }],
     linkNode: component.name
   }
 }
@@ -142,7 +141,6 @@ function slashGroups(
     const values = derived.variants.get(component.id)?.componentPropertyValues ?? {}
     return {
       values: props.map((prop) => values[prop.name] ?? ''),
-      html: nodeHTML(graph, component),
       node: component
     }
   })
@@ -189,6 +187,7 @@ function identifier(text: string, used: Set<string>): string {
 }
 
 interface ModuleContext {
+  graph: SceneGraph
   framework: StorybookFramework
   source?: string
   linkPath?: string
@@ -237,7 +236,10 @@ function storyModule(group: StoryGroup, context: ModuleContext): string {
       props.length === 0
         ? 'Default'
         : props.map((p, j) => `${p.name}=${variant.values[j] ?? ''}`).join(', ')
-    const linkNode = uniqueNames.has(variant.node.name) ? variant.node.name : group.linkNode
+    // The link scheme addresses layers by name, so only a name no other layer carries is linked.
+    const linkNode = [variant.node.name, group.linkNode].find(
+      (name) => name !== undefined && uniqueNames.has(name)
+    )
     const design = [
       ...designLink(context, linkNode),
       ...(images?.[i] ? [`{ name: 'Design', type: 'image', url: design${i} }`] : [])
@@ -255,7 +257,7 @@ ${imports}${imageImports.join('')}
 type Args = ${argsType}
 
 const variants: Record<string, string> = {
-${variants.map((v) => `  ${lit(JSON.stringify(v.values))}: ${lit(v.html)},`).join('\n')}
+${variants.map((v) => `  ${lit(JSON.stringify(v.values))}: ${lit(nodeHTML(context.graph, v.node))},`).join('\n')}
 }
 
 function variantHTML(args: Args): string {
@@ -267,7 +269,7 @@ function variantHTML(args: Args): string {
 
 const meta = {
   title: ${lit(group.title)},
-  ${designParameter(designLink(context, group.linkNode))}args: ${argsLiteral(variants[0]?.values ?? [])},
+  ${designParameter(designLink(context, group.linkNode && uniqueNames.has(group.linkNode) ? group.linkNode : undefined))}args: ${argsLiteral(variants[0]?.values ?? [])},
   argTypes: { ${argTypes} },
   render: (args) => ${render}
 } satisfies Meta<Args>
@@ -293,20 +295,31 @@ export async function exportStorybook(
   graph: SceneGraph,
   options: ExportStorybookOptions = {}
 ): Promise<ExportHTMLFile[]> {
-  const pages = graph.getPages().filter((page) => !options.pageId || page.id === options.pageId)
+  // The source ends the header's `//` comment; a line break in it would start code.
+  if (options.source && /[\n\r\u2028\u2029]/.test(options.source))
+    throw new Error(`Story source contains a line break: ${JSON.stringify(options.source)}`)
   const uniqueNames = uniqueLayerNames(graph)
   const usedFiles = new Set<string>()
+  const usedTitles = new Set<string>()
   const files: ExportHTMLFile[] = []
-  for (const page of pages) {
+  // Every page is named, so a `pageId` export picks the same file names as a full one.
+  for (const page of graph.getPages()) {
     for (const group of collectGroups(graph, page)) {
+      // Same-named components on a page would share a title, and Storybook story ids.
+      let title = group.title
+      for (let i = 2; usedTitles.has(title); i++) title = `${group.title} ${i}`
+      usedTitles.add(title)
+      group.title = title
       const base = identifier(group.name, usedFiles)
+      if (options.pageId && page.id !== options.pageId) continue
       const render = options.renderDesignImage
       const images = render && storyNames(group).map((name) => `${base}.design/${name}.png`)
       if (render && images) {
         for (const [i, variant] of group.variants.entries())
           files.push({ path: images[i] ?? '', content: await render(variant.node.id) })
       }
-      const context = { ...options, framework: options.framework ?? 'react', uniqueNames, images }
+      const framework = options.framework ?? 'react'
+      const context = { ...options, graph, framework, uniqueNames, images }
       files.push({ path: `${base}.stories.ts`, content: storyModule(group, context) })
     }
   }
