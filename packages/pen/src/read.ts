@@ -477,8 +477,9 @@ function fixInstanceWidths(graph: SceneGraph): void {
 
 function fixTextWidths(graph: SceneGraph): void {
   for (const node of graph.getAllNodes()) {
-    if (node.type !== 'TEXT' || !node.text || node.text.length <= 1) continue
-    if (node.width >= node.fontSize * 2) continue
+    if (node.type !== 'TEXT' || !node.text) continue
+    // A single glyph may be narrower than two ems, but never zero wide (an omitted width).
+    if (node.width >= node.fontSize * 2 || (node.width > 0 && node.text.length <= 1)) continue
     node.width = node.text.length * node.fontSize * 0.65
   }
 }
