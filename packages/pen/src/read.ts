@@ -258,8 +258,11 @@ function createSceneNode(
     applyTextProps(node, pen, ctx)
     if (parentLayout === 'NONE' && pen.width === undefined && !pen.textGrowth) {
       node.textAutoResize = 'NONE'
-      node.width = node.text.length * node.fontSize * 0.65
+      node.width = estimateTextWidth(node)
       node.height = node.fontSize * (node.lineHeight ? node.lineHeight / node.fontSize : 1.2)
+    } else if (pen.width === undefined) {
+      // Headless layout keeps stored sizes, so an omitted width starts from the content.
+      node.width = estimateTextWidth(node)
     }
   }
 
@@ -475,12 +478,15 @@ function fixInstanceWidths(graph: SceneGraph): void {
   }
 }
 
+function estimateTextWidth(node: SceneNode): number {
+  return Math.max(node.text.length, 1) * node.fontSize * 0.65
+}
+
 function fixTextWidths(graph: SceneGraph): void {
   for (const node of graph.getAllNodes()) {
-    if (node.type !== 'TEXT' || !node.text) continue
-    // A single glyph may be narrower than two ems, but never zero wide (an omitted width).
-    if (node.width >= node.fontSize * 2 || (node.width > 0 && node.text.length <= 1)) continue
-    node.width = node.text.length * node.fontSize * 0.65
+    if (node.type !== 'TEXT' || !node.text || node.text.length <= 1) continue
+    if (node.width >= node.fontSize * 2) continue
+    node.width = estimateTextWidth(node)
   }
 }
 
