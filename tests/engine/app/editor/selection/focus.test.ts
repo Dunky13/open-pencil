@@ -104,6 +104,22 @@ test('yields to a page switch the user starts while other pages load', async () 
   expect(pageId).not.toBe(mine.id)
 })
 
+test('does not focus a page whose switch another switch overtook', async () => {
+  const { graph, store, selected } = harness()
+  const other = graph.addPage('Other')
+  const mine = graph.addPage('Mine')
+  graph.createNode('COMPONENT', other.id, { name: 'Button' })
+  const switchPage = store.switchPage
+  store.switchPage = async (id) => {
+    await switchPage(id)
+    await switchPage(mine.id)
+  }
+
+  expect(await focusNodesByName(store, 'Button')).toBe('superseded')
+  expect(store.state.currentPageId).toBe(mine.id)
+  expect(selected).toEqual([])
+})
+
 test('does nothing for a name no page carries', async () => {
   const { pageId, store, selected } = harness()
 

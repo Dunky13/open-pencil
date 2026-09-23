@@ -70,6 +70,9 @@ export async function focusNodesByName(
     const ids = findNodesByName(store.graph, page.id, name)
     if (ids.length === 0) continue
     await store.switchPage(page.id)
+    // A switch the user started meanwhile can keep this one from committing.
+    if (store.pageSwitchCount() !== switches + 1 || store.state.currentPageId !== page.id)
+      return 'superseded'
     return focusNodes(store, ids) ? 'found' : 'missing'
   }
   return 'missing'
