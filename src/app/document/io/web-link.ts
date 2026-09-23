@@ -16,7 +16,7 @@ export interface WebOpenParams {
 
 export interface WebLinkActions {
   /** Selects the node and zooms to it. False when no node carries that name. */
-  selectByName: (name: string) => boolean
+  selectByName: (name: string) => boolean | Promise<boolean>
   notify: (message: string, level: 'info' | 'error') => void
 }
 
@@ -76,7 +76,7 @@ export async function openWebLink(
     )
     return
   }
-  if (target.node && !actions.selectByName(target.node)) {
+  if (target.node && !(await actions.selectByName(target.node))) {
     actions.notify(
       messages.deepLinkNodeNotFound({ node: clamp(target.node), file: clamp(target.file.host) }),
       'info'

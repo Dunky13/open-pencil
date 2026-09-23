@@ -21,7 +21,7 @@ export interface DeepLinkActions {
   /** Absolute paths of the documents currently open in tabs. */
   openPaths: () => string[]
   /** Selects the node and zooms to it. False when no node carries that name. */
-  selectByName: (name: string) => boolean
+  selectByName: (name: string) => boolean | Promise<boolean>
   notify: (message: string) => void
 }
 
@@ -99,7 +99,7 @@ export async function openDeepLink(
     }
     await io.openPath(picked)
   }
-  if (target.node && !actions.selectByName(target.node)) {
+  if (target.node && !(await actions.selectByName(target.node))) {
     actions.notify(
       messages.deepLinkNodeNotFound({ node: clamp(target.node), file: clamp(target.path) })
     )

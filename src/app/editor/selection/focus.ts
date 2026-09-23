@@ -2,10 +2,13 @@ import type { SceneGraph } from '@open-pencil/scene-graph'
 
 /** What focusing needs from the editor, so a caller can drive it without a whole store. */
 export interface FocusStore {
-  graph: Pick<SceneGraph, 'getChildren' | 'getNode'>
+  graph: Pick<SceneGraph, 'getChildren' | 'getNode' | 'getPages'>
   state: { currentPageId: string }
   select: (ids: string[]) => void
   zoomToSelection: () => void
+  /** Loads a page's layers without showing it; imported pages load them on first visit. */
+  preparePage: (pageId: string) => Promise<unknown>
+  switchPage: (pageId: string) => Promise<void>
 }
 
 /**
@@ -42,7 +45,21 @@ export function focusNodes(store: FocusStore, ids: readonly string[]): boolean {
   return true
 }
 
-/** Focuses every node with that exact name on the current page. */
-export function focusNodesByName(store: FocusStore, name: string): boolean {
-  return focusNodes(store, findNodesByName(store.graph, store.state.currentPageId, name))
+/**
+ * Focuses every node with that exact name on the current page, or else on the first
+ * other page that carries it, switching to that page. Other pages are loaded without
+ * being shown, so a miss leaves the view where it was.
+ */
+export async function focusNodesByName(store: FocusStore, name: string): Promise<boolean> {
+  const here = findNodesByName(store.graph, store.state.currentPageId, name)
+  if (here.length > 0) return focusNodes(store, here)
+  for (const page of store.graph.getPages()) {
+    if (page.id === store.state.currentPageId) continue
+    await store.preparePage(page.id)
+    const ids = findNodesByName(store.graph, page.id, name)
+    if (ids.length === 0) continue
+    await store.switchPage(page.id)
+    return focusNodes(store, ids)
+  }
+  return false
 }

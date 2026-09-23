@@ -13,18 +13,24 @@ function harness() {
   const graph = makeSceneGraph()
   const pageId = firstPageId(graph)
   const selected: string[][] = []
+  const prepared: string[] = []
   let zooms = 0
   const store: FocusStore = {
     graph,
     state: { currentPageId: pageId },
     select: (ids) => void selected.push(ids),
-    zoomToSelection: () => void zooms++
+    zoomToSelection: () => void zooms++,
+    preparePage: async (id) => void prepared.push(id),
+    switchPage: async (id) => {
+      store.state.currentPageId = id
+    }
   }
   return {
     graph,
     pageId,
     store,
     selected,
+    prepared,
     get zooms() {
       return zooms
     }
@@ -51,21 +57,41 @@ test('walks nested groups rather than only the first level', () => {
   expect(findNodesByName(graph, pageId, 'Deep')).toEqual([leaf.id])
 })
 
-test('focuses every match by name and zooms once', () => {
+test('focuses every match by name and zooms once', async () => {
   const { graph, pageId, store, selected } = harness()
   const frame = graph.createNode('FRAME', pageId, { name: 'Card' })
   const first = graph.createNode('RECTANGLE', frame.id, { name: 'Button' })
   const second = graph.createNode('RECTANGLE', frame.id, { name: 'Button' })
 
-  expect(focusNodesByName(store, 'Button')).toBe(true)
+  expect(await focusNodesByName(store, 'Button')).toBe(true)
   expect(selected).toEqual([[first.id, second.id]])
 })
 
-test('does nothing for a name the page does not carry', () => {
-  const { store, selected } = harness()
+test('prefers the current page and otherwise switches to the first page carrying the name', async () => {
+  const { graph, pageId, store, selected, prepared } = harness()
+  const second = graph.addPage('Components')
+  const third = graph.addPage('More')
+  const here = graph.createNode('RECTANGLE', pageId, { name: 'Shared' })
+  graph.createNode('RECTANGLE', second.id, { name: 'Shared' })
+  const button = graph.createNode('COMPONENT', third.id, { name: 'Button' })
 
-  expect(focusNodesByName(store, 'Missing')).toBe(false)
+  expect(await focusNodesByName(store, 'Shared')).toBe(true)
+  expect(selected).toEqual([[here.id]])
+  expect(prepared).toEqual([])
+
+  expect(await focusNodesByName(store, 'Button')).toBe(true)
+  expect(prepared).not.toContain(pageId)
+  expect(prepared.slice(-2)).toEqual([second.id, third.id])
+  expect(store.state.currentPageId).toBe(third.id)
+  expect(selected.at(-1)).toEqual([button.id])
+})
+
+test('does nothing for a name no page carries', async () => {
+  const { pageId, store, selected } = harness()
+
+  expect(await focusNodesByName(store, 'Missing')).toBe(false)
   expect(selected).toEqual([])
+  expect(store.state.currentPageId).toBe(pageId)
 })
 
 test('ignores ids that are no longer in the document', () => {

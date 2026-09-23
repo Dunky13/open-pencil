@@ -108,7 +108,7 @@ function stripWebLinkParams(): void {
 }
 
 /** The action both link handlers take; see `focusNodesByName`. */
-function selectNodeByName(name: string): boolean {
+function selectNodeByName(name: string): Promise<boolean> {
   return focusNodesByName(getActiveStore(), name)
 }
 
