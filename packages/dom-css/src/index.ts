@@ -1,7 +1,7 @@
 import type * as DesignTypes from './types'
 
 export { exportHTMLBundle } from './html-export'
-export { exportStorybook } from './storybook-export'
+export { exportStorybook, generatedStorySource } from './storybook-export'
 export { serializeHTML, serializeNode } from './serialize'
 export { createBrowserCSSRuntime, createCSSRuntime, createHeadlessCSSRuntime } from './runtime'
 export {

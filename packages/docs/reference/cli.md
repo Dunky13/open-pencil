@@ -110,6 +110,8 @@ openpencil export [file] [options]
 | `--assets` | | Standalone HTML assets: `inline` (default), `external` |
 | `--fonts` | | Standalone HTML font output: `assets`, `none` (default) |
 | `--framework` | | Storybook framework: `react` (default), `vue`, `html` |
+| `--design-images` | | Storybook: render a PNG per variant for the Design panel (default: on; `--no-design-images` to skip) |
+| `--watch` | | Storybook: re-export whenever the document is saved |
 | `--thumbnail` | | Export page thumbnail instead of full render |
 | `--width` | | Thumbnail width (default: 1920) |
 | `--height` | | Thumbnail height (default: 1080) |

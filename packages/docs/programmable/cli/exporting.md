@@ -96,13 +96,19 @@ Generate one CSF3 `.stories.ts` file per component set or component:
 openpencil export design.fig -f storybook                      # React stories in ./design-stories/
 openpencil export design.fig -f storybook --framework vue -o src/stories
 openpencil export design.fig -f storybook --framework html --page "Components"
+openpencil export design.pen -f storybook -o src/stories --watch  # re-export on every save
 ```
 
 Each variant of a component set becomes a story, and its variant properties become `select` controls, so switching a control shows the matching variant. Standalone components named with slashes, such as `Button/Primary` and `Button/Secondary`, are grouped into one `Button` file with a `Variant` control. A combination the design has no variant for throws a named error in Storybook rather than showing a different variant.
 
 Stories render the component as HTML with inline styles, like `-f html`, so they need no OpenPencil runtime; `--framework` (`react`, `vue`, or `html`) only changes the wrapper and the `Meta`/`StoryObj` import from `@storybook/react-vite`, `@storybook/vue3-vite`, or `@storybook/html-vite`. Text uses the document's font families, which Storybook has to load itself. Text, boolean, and instance-swap properties are not exported yet.
 
-When the document path is inside the current directory, each story carries a `parameters.design` link in the [`openpencil://` format](../index#url-scheme), which [`@storybook/addon-designs`](https://github.com/storybookjs/addon-designs) shows as a link back to the component in the desktop app. `-o` names the output directory; files are overwritten on re-export.
+Stories carry `parameters.design` entries for [`@storybook/addon-designs`](https://github.com/storybookjs/addon-designs):
+
+- **OpenPencil** — when the document path is inside the current directory, an [`openpencil://` link](../index#url-scheme) that opens the document in the desktop app and selects the variant, or the component set when another layer shares the variant's name.
+- **Design** — a 2× PNG of the variant, written to `<Name>.design/` next to the story and imported, so Vite bundles it. Copy the parameter onto the story of your own component to compare the implementation with the design. `--no-design-images` skips rendering; font substitution follows `--font-policy` as in raster export.
+
+`-o` names the output directory. Each export replaces the stories and design images a previous export generated there — including those of components since deleted or renamed — and leaves other files alone. `--watch` keeps the command running and re-exports whenever the document is saved, so Storybook's hot reload follows the design; a save that cannot be read is reported and the watch continues.
 
 ## Live App Mode
 
