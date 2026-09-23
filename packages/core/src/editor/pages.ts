@@ -242,8 +242,14 @@ export function createPageActions(ctx: EditorContext) {
     ctx.requestRender()
   }
 
+  /** Advances whenever a page switch starts, so a caller can tell it was overtaken. */
+  function pageSwitchCount(): number {
+    return pageSwitchGeneration
+  }
+
   return {
     loadPageNodes,
+    pageSwitchCount,
     preparePage,
     commitPageSwitch,
     switchPage,
