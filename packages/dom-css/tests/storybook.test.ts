@@ -157,24 +157,34 @@ describe('exportStorybook', () => {
     expect(files.map((file) => file.path)).toEqual(['Card.stories.ts', 'Card2.stories.ts'])
     expect(String(files[1]?.content)).toContain('title: "Library/Card 2"')
 
+    // Storybook ids ignore case, so `library/Card` would collide with `Library/Card`.
+    const lower = graph.addPage('library')
+    graph.createNode('COMPONENT', lower.id, { name: 'Card', width: 5, height: 5 })
+    const withLower = await exportStorybook(graph, { framework: 'html' })
+    expect(String(withLower[2]?.content)).toContain('title: "library/Card 3"')
+
     // A one-page export names its files as the full export does.
     const other = graph.addPage('Other')
     graph.createNode('COMPONENT', other.id, { name: 'Card', width: 30, height: 10 })
     const pageFiles = await exportStorybook(graph, { framework: 'html', pageId: other.id })
-    expect(pageFiles.map((file) => file.path)).toEqual(['Card3.stories.ts'])
+    expect(pageFiles.map((file) => file.path)).toEqual(['Card4.stories.ts'])
   })
 
-  it('records its source in a header that survives CRLF and refuses line breaks', async () => {
+  it('records its document and page in a one-line header that survives CRLF', async () => {
     const { graph } = buttonGraph()
-    const [story] = await exportStorybook(graph, { framework: 'html', source: 'design/ui.fig' })
-    const content = String(story?.content)
+    for (const source of ['design/ui.fig', 'a\nb.fig', 'a\u2028b "c".fig']) {
+      const [story] = await exportStorybook(graph, { framework: 'html', source })
+      const content = String(story?.content)
+      const header = content.split('\n', 1)[0] ?? ''
 
-    expect(generatedStorySource(content)).toBe('design/ui.fig')
-    expect(generatedStorySource(content.replaceAll('\n', '\r\n'))).toBe('design/ui.fig')
-    expect(generatedStorySource('export default {}\n')).toBeNull()
-    for (const source of ['a\n.fig', 'a\r.fig', 'a\u2028.fig']) {
-      await expect(exportStorybook(graph, { source })).rejects.toThrow('line break')
+      expect(header).not.toMatch(/[\r\u2028\u2029]/)
+      expect(generatedStorySource(content)).toEqual({ source, page: 'Library' })
+      expect(generatedStorySource(content.replaceAll('\n', '\r\n'))).toEqual({
+        source,
+        page: 'Library'
+      })
     }
+    expect(generatedStorySource('export default {}\n')).toBeNull()
   })
 
   it('omits the link when neither the variant nor its set has a unique name', async () => {
