@@ -193,6 +193,11 @@ describe('parsePenFile — text without a width', () => {
     }
   })
 
+  test('keeps empty text without a width at zero', () => {
+    const { label } = hugButton({ id: 'label', name: 'label', type: 'text', content: '' })
+    expect(label?.width).toBe(0)
+  })
+
   test('keeps an explicit zero width', () => {
     const graph = parsePenFile(
       JSON.stringify({

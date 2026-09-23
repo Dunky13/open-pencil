@@ -479,7 +479,7 @@ function fixInstanceWidths(graph: SceneGraph): void {
 }
 
 function estimateTextWidth(node: SceneNode): number {
-  return Math.max(node.text.length, 1) * node.fontSize * 0.65
+  return node.text.length * node.fontSize * 0.65
 }
 
 function fixTextWidths(graph: SceneGraph): void {
