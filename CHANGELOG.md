@@ -6,6 +6,10 @@
 
 - The desktop app now requires macOS 13 or later; the web app supports Chrome 111, Edge 111, Firefox 128, and Safari 16.4 or later.
 
+### Added
+
+- Export components to Storybook with `openpencil export -f storybook`: one CSF3 story file per component set or component for React, Vue, or HTML, with a story and `select` controls per variant and an `openpencil://` design link back to the component (#727).
+
 ### Fixed
 
 - Show what to update instead of a blank window when the browser or system WebView is too old, naming the detected macOS, Safari, Chrome, Edge, Firefox, WebKitGTK, or WebView2 version and linking a prefilled bug report, and explain a failed start the same way (#744).

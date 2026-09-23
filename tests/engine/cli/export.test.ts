@@ -261,3 +261,48 @@ test('export CLI can write external standalone HTML assets', async () => {
   expect(css).toContain('.flex')
   expect(css).toContain('.op-stage')
 })
+
+test('export CLI writes Storybook stories for components', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
+  const figPath = join(dir, 'library.fig')
+  const graph = makeSceneGraph()
+  const page = graph.addPage('Library')
+  graph.createNode('COMPONENT', page.id, { name: 'Badge', width: 32, height: 16 })
+  const result = await io.writeDocument('fig', graph)
+  await Bun.write(figPath, result.data as Uint8Array)
+  const output = join(dir, 'stories')
+
+  const { stdout, stderr, exitCode } = await runOpenPencilCLI([
+    'export',
+    figPath,
+    '--format',
+    'storybook',
+    '--framework',
+    'vue',
+    '--output',
+    output
+  ])
+
+  expect(stderr).toBe('')
+  expect(exitCode).toBe(0)
+  expect(stdout).toContain('Exported 1 story files')
+  const story = await Bun.file(join(output, 'Badge.stories.ts')).text()
+  expect(story).toContain("from '@storybook/vue3-vite'")
+  expect(story).toContain('title: "Library/Badge"')
+})
+
+test('export CLI rejects Storybook export of a document without components', async () => {
+  const { dir, figPath } = await createFigFixture()
+
+  const { stderr, exitCode } = await runOpenPencilCLI([
+    'export',
+    figPath,
+    '--format',
+    'storybook',
+    '--output',
+    join(dir, 'stories')
+  ])
+
+  expect(exitCode).toBe(1)
+  expect(stderr).toContain('No components found in the document.')
+})

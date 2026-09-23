@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import { defineCommand } from 'citty'
 
@@ -8,8 +8,10 @@ import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 import type { RasterExportFormat } from '@open-pencil/core/io'
 import {
   exportHTMLBundle,
+  exportStorybook,
   sceneGraphToDesignDocument,
-  type ExportHTMLBundleOptions
+  type ExportHTMLBundleOptions,
+  type StorybookFramework
 } from '@open-pencil/dom-css'
 
 import { isAppMode, requireFile, rpc } from '#cli/app-client'
@@ -20,12 +22,30 @@ import { loadDocument, populateDocumentPage, populateWholeDocument } from '#cli/
 
 const io = new IORegistry(BUILTIN_IO_FORMATS)
 const RASTER_FORMATS = ['PNG', 'JPG', 'WEBP']
-const ALL_FORMATS = new Set([...RASTER_FORMATS, 'SVG', 'PDF', 'PPTX', 'JSX', 'FIG', 'HTML'])
+const ALL_FORMATS = new Set([
+  ...RASTER_FORMATS,
+  'SVG',
+  'PDF',
+  'PPTX',
+  'JSX',
+  'FIG',
+  'HTML',
+  'STORYBOOK'
+])
 const JSX_STYLES = new Set(['openpencil', 'tailwind'])
 const HTML_STYLES = new Set(['inline', 'tailwind'])
 const HTML_MODES = new Set(['fragment', 'standalone'])
 const HTML_ASSETS = new Set(['inline', 'external'])
 const HTML_FONTS = new Set(['assets', 'none'])
+const STORYBOOK_FRAMEWORKS = new Set<string>([
+  'react',
+  'vue',
+  'html'
+] satisfies StorybookFramework[])
+
+function isStorybookFramework(value: string): value is StorybookFramework {
+  return STORYBOOK_FRAMEWORKS.has(value)
+}
 
 interface ExportArgs {
   file?: string
@@ -40,6 +60,7 @@ interface ExportArgs {
   css: string
   assets: string
   fonts: string
+  framework: string
   'font-policy': string
   thumbnail?: boolean
   width: string
@@ -85,7 +106,13 @@ async function exportViaApp(format: string, args: ExportArgs) {
     return
   }
 
-  if (format === 'JSX' || format === 'HTML' || format === 'FIG' || format === 'PPTX') {
+  if (
+    format === 'JSX' ||
+    format === 'HTML' ||
+    format === 'FIG' ||
+    format === 'PPTX' ||
+    format === 'STORYBOOK'
+  ) {
     printError(`${format} export is only available in file mode right now.`)
     process.exit(1)
   }
@@ -156,6 +183,40 @@ async function exportHTMLFromFile(
   console.log(ok(`Target: ${targetLabel(args.page, args.node)}`))
 }
 
+/** Repository-relative path for `openpencil://` links, when the file sits under the cwd. */
+function storybookLinkPath(file: string): string | undefined {
+  const path = relative(process.cwd(), resolve(file)).split('\\').join('/')
+  return path.startsWith('../') || isAbsolute(path) ? undefined : path
+}
+
+async function exportStorybookFromFile(args: ExportArgs) {
+  if (args.node) {
+    printError('--node is not supported for Storybook export. Use --page to limit it to one page.')
+    process.exit(1)
+  }
+  if (!isStorybookFramework(args.framework)) {
+    printError(`Invalid Storybook framework "${args.framework}". Use react, vue, or html.`)
+    process.exit(1)
+  }
+  const file = requireFile(args.file)
+  const graph = await loadDocument(file)
+  const pageId = args.page ? requirePage(graph, args.page).id : undefined
+  populateWholeDocument(graph)
+  const files = exportStorybook(graph, {
+    framework: args.framework,
+    pageId,
+    linkPath: storybookLinkPath(file)
+  })
+  if (files.length === 0) {
+    printError(`No components found in ${args.page ? `page "${args.page}"` : 'the document'}.`)
+    process.exit(1)
+  }
+  const outputDir = resolve(args.output ?? `${basename(file, extname(file))}-stories`)
+  await mkdir(outputDir, { recursive: true })
+  for (const story of files) await writeFile(join(outputDir, story.path), story.content)
+  console.log(ok(`Exported ${files.length} story files to ${outputDir}`))
+}
+
 function prepareGraphForExport(
   graph: Awaited<ReturnType<typeof loadDocument>>,
   pageId: string,
@@ -184,21 +245,26 @@ async function executeFileExport(
   return io.exportContent(formatId, { graph, target }, options)
 }
 
-async function exportFromFile(format: string, args: ExportArgs) {
-  const file = requireFile(args.file)
-  const graph = await loadDocument(file)
-
+function requirePage(graph: Awaited<ReturnType<typeof loadDocument>>, pageName?: string) {
   const pages = graph.getPages()
-  const page = args.page ? pages.find((p) => p.name === args.page) : pages[0]
+  const page = pageName ? pages.find((p) => p.name === pageName) : pages[0]
   if (!page) {
     const available = pages.map((p) => `"${p.name}"`).join(', ')
     printError(
-      args.page
-        ? `Page "${args.page}" not found. Available pages: ${available || 'none'}.`
+      pageName
+        ? `Page "${pageName}" not found. Available pages: ${available || 'none'}.`
         : 'Document has no pages.'
     )
     process.exit(1)
   }
+  return page
+}
+
+async function exportFromFile(format: string, args: ExportArgs) {
+  const file = requireFile(args.file)
+  const graph = await loadDocument(file)
+  const pages = graph.getPages()
+  const page = requirePage(graph, args.page)
 
   const defaultName = basename(file, extname(file))
 
@@ -264,7 +330,10 @@ async function exportFromFile(format: string, args: ExportArgs) {
 }
 
 export default defineCommand({
-  meta: { description: 'Export a document to PNG, JPG, WEBP, SVG, PDF, PPTX, JSX, HTML, or .fig' },
+  meta: {
+    description:
+      'Export a document to PNG, JPG, WEBP, SVG, PDF, PPTX, JSX, HTML, .fig, or Storybook stories'
+  },
   args: {
     file: {
       type: 'positional',
@@ -274,13 +343,15 @@ export default defineCommand({
     output: {
       type: 'string',
       alias: 'o',
-      description: 'Output file path (default: <name>.<format>)',
+      description:
+        'Output file path (default: <name>.<format>); for storybook, a directory (default: <name>-stories)',
       required: false
     },
     format: {
       type: 'string',
       alias: 'f',
-      description: 'Export format: png, jpg, webp, svg, pdf, pptx, jsx, html, fig (default: png)',
+      description:
+        'Export format: png, jpg, webp, svg, pdf, pptx, jsx, html, fig, storybook (default: png)',
       default: 'png'
     },
     scale: { type: 'string', alias: 's', description: 'Export scale (default: 1)', default: '1' },
@@ -325,6 +396,11 @@ export default defineCommand({
       description: 'HTML font output: assets or none (default: none)',
       default: 'none'
     },
+    framework: {
+      type: 'string',
+      description: 'Storybook framework: react, vue, or html (default: react)',
+      default: 'react'
+    },
     'font-policy': {
       type: 'string',
       description: 'Raster/PDF font policy: warn, strict, or allow (default: warn)',
@@ -336,10 +412,16 @@ export default defineCommand({
     ...appTargetOptions
   },
   async run({ args }) {
-    const format = args.format.toUpperCase() as RasterExportFormat | 'SVG' | 'JSX' | 'FIG' | 'HTML'
+    const format = args.format.toUpperCase() as
+      | RasterExportFormat
+      | 'SVG'
+      | 'JSX'
+      | 'FIG'
+      | 'HTML'
+      | 'STORYBOOK'
     if (!ALL_FORMATS.has(format)) {
       printError(
-        `Invalid format "${args.format}". Use png, jpg, webp, svg, pdf, pptx, jsx, html, or fig.`
+        `Invalid format "${args.format}". Use png, jpg, webp, svg, pdf, pptx, jsx, html, fig, or storybook.`
       )
       process.exit(1)
     }
@@ -376,6 +458,8 @@ export default defineCommand({
 
     if (isAppMode(args.file)) {
       await exportViaApp(format, args)
+    } else if (format === 'STORYBOOK') {
+      await exportStorybookFromFile(args)
     } else {
       await exportFromFile(format, args)
     }

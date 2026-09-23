@@ -105,6 +105,7 @@ openpencil export design.fig -f pdf -o page.pdf
 openpencil export design.fig -f fig -o roundtrip.fig
 openpencil export design.fig -f jsx -o component.jsx
 openpencil export design.fig -f jsx --style tailwind -o component.tsx
+openpencil export design.fig -f storybook -o src/stories  # one .stories.ts per component
 openpencil export design.fig --thumbnail --width 1920 --height 1080
 openpencil export --page "Components" -o components.png
 

@@ -90,7 +90,7 @@ openpencil variables [file] [options]
 
 ## export
 
-Export to PNG, JPG, WEBP, SVG, JSX, HTML, or `.fig`.
+Export to PNG, JPG, WEBP, SVG, JSX, HTML, `.fig`, or Storybook stories.
 
 ```sh
 openpencil export [file] [options]
@@ -98,8 +98,8 @@ openpencil export [file] [options]
 
 | Option | Alias | Description |
 |--------|-------|-------------|
-| `--format` | `-f` | `png` (default), `jpg`, `webp`, `svg`, `jsx`, `html`, `fig` |
-| `--output` | `-o` | Output file path (default: `<name>.<format>`) |
+| `--format` | `-f` | `png` (default), `jpg`, `webp`, `svg`, `jsx`, `html`, `fig`, `storybook` |
+| `--output` | `-o` | Output file path (default: `<name>.<format>`); a directory for `storybook` (default: `<name>-stories`) |
 | `--scale` | `-s` | Export scale (default: 1) |
 | `--quality` | `-q` | Quality 0–100, JPG/WEBP only (default: 90) |
 | `--page` | | Page name (default: first page) |
@@ -109,6 +109,7 @@ openpencil export [file] [options]
 | `--css` | | HTML CSS output: `inline` (default), `tailwind` |
 | `--assets` | | Standalone HTML assets: `inline` (default), `external` |
 | `--fonts` | | Standalone HTML font output: `assets`, `none` (default) |
+| `--framework` | | Storybook framework: `react` (default), `vue`, `html` |
 | `--thumbnail` | | Export page thumbnail instead of full render |
 | `--width` | | Thumbnail width (default: 1920) |
 | `--height` | | Thumbnail height (default: 1080) |
