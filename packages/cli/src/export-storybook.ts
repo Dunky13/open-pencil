@@ -1,5 +1,15 @@
 import { existsSync, watch } from 'node:fs'
-import { mkdir, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  rmdir,
+  writeFile
+} from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
@@ -76,6 +86,21 @@ function referencedImages(content: string): string[] {
   })
 }
 
+/**
+ * Refuses a path whose `.design` folder is a symbolic link: removing or writing an image
+ * through it would reach outside the output directory.
+ */
+async function refuseLinkedFolder(outputDir: string, path: string): Promise<void> {
+  const folder = dirname(path)
+  if (folder === '.') return
+  const stats = await lstat(join(outputDir, folder)).catch((error: unknown) => {
+    if (isErrorCode(error, 'ENOENT')) return null
+    throw error
+  })
+  if (stats && !stats.isDirectory())
+    throw new Error(`${join(outputDir, folder)} is not a folder; remove it and export again.`)
+}
+
 function isErrorCode(error: unknown, ...codes: string[]): boolean {
   return error instanceof Error && 'code' in error && codes.includes(String(error.code))
 }
@@ -102,6 +127,7 @@ async function replaceGeneratedStories(
     owned.add(entry)
     for (const image of referencedImages(content)) owned.add(image)
   }
+  for (const path of new Set([...paths, ...owned])) await refuseLinkedFolder(outputDir, path)
   for (const path of paths) {
     const target = join(outputDir, path)
     if (owned.has(path) || !existsSync(target)) continue
@@ -153,15 +179,22 @@ async function writeStories(
     throw new Error(`No components found in ${args.page ? `page "${args.page}"` : 'the document'}.`)
 
   await mkdir(outputDir, { recursive: true })
-  await replaceGeneratedStories(
-    outputDir,
-    { source, page: args.page },
-    files.map((story) => story.path)
-  )
-  for (const story of files) {
-    const path = join(outputDir, story.path)
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, story.content)
+  // Staged next to the output so a failed write leaves the previous export in place,
+  // and in a dot folder, which Storybook's story globs skip.
+  const staging = await mkdtemp(join(outputDir, '.openpencil-export-'))
+  try {
+    for (const story of files) {
+      await mkdir(dirname(join(staging, story.path)), { recursive: true })
+      await writeFile(join(staging, story.path), story.content)
+    }
+    const paths = files.map((story) => story.path)
+    await replaceGeneratedStories(outputDir, { source, page: args.page }, paths)
+    for (const path of paths) {
+      await mkdir(dirname(join(outputDir, path)), { recursive: true })
+      await rename(join(staging, path), join(outputDir, path))
+    }
+  } finally {
+    await rm(staging, { recursive: true, force: true })
   }
   return files.filter((story) => story.path.endsWith('.stories.ts')).length
 }

@@ -1,5 +1,5 @@
 import { expect, setDefaultTimeout, test } from 'bun:test'
-import { mkdir, mkdtemp, readdir } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -472,6 +472,26 @@ test('export CLI removes the design folder of a deleted component', async () => 
   expect((await runOpenPencilCLI(['export', chip, ...args])).exitCode).toBe(0)
 
   expect((await readdir(output)).sort()).toEqual(['Chip.design', 'Chip.stories.ts'])
+})
+
+test('export CLI refuses a design folder that links outside the output', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
+  const figPath = await writeComponentFixture(dir, ['Badge'])
+  const output = join(dir, 'stories')
+  const args = ['--format', 'storybook', '--font-policy', 'allow', '--output', output]
+  expect((await runOpenPencilCLI(['export', figPath, ...args])).exitCode).toBe(0)
+  const outside = join(dir, 'outside')
+  await mkdir(outside)
+  await Bun.write(join(outside, 'Default.png'), 'keep')
+  await rm(join(output, 'Badge.design'), { recursive: true })
+  await symlink(outside, join(output, 'Badge.design'))
+
+  const { stderr, exitCode } = await runOpenPencilCLI(['export', figPath, ...args])
+
+  expect(exitCode).toBe(1)
+  expect(stderr).toContain('Badge.design is not a folder')
+  expect(await Bun.file(join(outside, 'Default.png')).text()).toBe('keep')
+  expect(await Bun.file(join(output, 'Badge.stories.ts')).exists()).toBe(true)
 })
 
 test('export CLI --watch re-exports stories when the document changes', async () => {
