@@ -13,8 +13,6 @@ import {
 
 import { isAppMode, requireFile, rpc } from '#cli/app-client'
 import { appTargetOptions, appTargetRPCArgs } from '#cli/app-target'
-import { applyExportFontPolicy, exportFontRoots, FONT_POLICIES } from '#cli/export-font-policy'
-import { exportStorybookFromFile } from '#cli/export-storybook'
 import { ok, printError } from '#cli/format'
 import {
   loadDocument,
@@ -22,6 +20,9 @@ import {
   populateWholeDocument,
   requirePage
 } from '#cli/headless'
+
+import { applyExportFontPolicy, exportFontRoots, FONT_POLICIES } from './font-policy'
+import { exportStorybookFromFile } from './storybook'
 
 const io = new IORegistry(BUILTIN_IO_FORMATS)
 // HTML and Storybook go through DOM/CSS exporters; every other format is a Core IO adapter.
