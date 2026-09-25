@@ -9,6 +9,7 @@
 ### Added
 
 - Export components to Storybook with `openpencil export -f storybook`: one CSF3 story file per component set or component for React, Vue, or HTML, with a story and `select` controls per variant, a design image per variant, and an `openpencil://` link that opens the variant in OpenPencil. `--watch` re-exports on every save and removes stories of deleted components (#727).
+- Choose PPTX in the Export panel's format list, alongside PNG, JPG, WEBP, SVG, and PDF.
 
 ### Changed
 
@@ -24,6 +25,7 @@
 ### Security
 
 - Evaluate `calc` expressions through `jsep` and an arithmetic allowlist that never compiles input into JavaScript, replacing the `expr-eval` dependency and its unpatched critical code-execution advisory (GHSA-q9v2-7m5w-4693).
+- Escape layer names and other text properties in JSX and Tailwind JSX export, so text from a document can no longer add attributes or JavaScript expressions that the AI and MCP `render` and `replace` tools would execute, and names containing `&` no longer change when the JSX is rendered back.
 
 ## 0.15.1 — 2026-09-18
 

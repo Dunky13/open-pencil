@@ -5,7 +5,6 @@ import { defineCommand } from 'citty'
 
 import { decodeBase64 } from '@open-pencil/core/bytes'
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
-import type { RasterExportFormat } from '@open-pencil/core/io'
 import {
   exportHTMLBundle,
   sceneGraphToDesignDocument,
@@ -25,17 +24,14 @@ import {
 } from '#cli/headless'
 
 const io = new IORegistry(BUILTIN_IO_FORMATS)
-const RASTER_FORMATS = ['PNG', 'JPG', 'WEBP']
-const ALL_FORMATS = new Set([
-  ...RASTER_FORMATS,
-  'SVG',
-  'PDF',
-  'PPTX',
-  'JSX',
-  'FIG',
-  'HTML',
-  'STORYBOOK'
-])
+// HTML and Storybook go through DOM/CSS exporters; every other format is a Core IO adapter.
+const FORMAT_IDS = [...io.listExportFormats('node').map((format) => format.id), 'html', 'storybook']
+const ALL_FORMATS = new Set(FORMAT_IDS.map((id) => id.toUpperCase()))
+const FORMAT_LIST = `${FORMAT_IDS.slice(0, -1).join(', ')}, or ${FORMAT_IDS.at(-1)}`
+
+function formatSupportsScale(format: string): boolean {
+  return io.getFormat(format.toLowerCase())?.exportOptions?.scale ?? false
+}
 const JSX_STYLES = new Set(['openpencil', 'tailwind'])
 const HTML_STYLES = new Set(['inline', 'tailwind'])
 const HTML_MODES = new Set(['fragment', 'standalone'])
@@ -256,7 +252,7 @@ async function exportFromFile(format: string, args: ExportArgs) {
     options = { format: args.style }
   } else if (format === 'FIG') {
     options = { renderThumbnail: true }
-  } else if (format === 'PNG' || format === 'JPG' || format === 'WEBP') {
+  } else if (formatSupportsScale(format)) {
     options = {
       format,
       scale: Number(args.scale),
@@ -270,7 +266,7 @@ async function exportFromFile(format: string, args: ExportArgs) {
       exportFileName(
         defaultName,
         result.extension,
-        format === 'PNG' || format === 'JPG' || format === 'WEBP' ? Number(args.scale) : undefined
+        formatSupportsScale(format) ? Number(args.scale) : undefined
       )
   )
   await writeAndLog(output, result.data as string | Uint8Array)
@@ -278,10 +274,7 @@ async function exportFromFile(format: string, args: ExportArgs) {
 }
 
 export default defineCommand({
-  meta: {
-    description:
-      'Export a document to PNG, JPG, WEBP, SVG, PDF, PPTX, JSX, HTML, .fig, or Storybook stories'
-  },
+  meta: { description: `Export a document to ${FORMAT_LIST}` },
   args: {
     file: {
       type: 'positional',
@@ -298,8 +291,7 @@ export default defineCommand({
     format: {
       type: 'string',
       alias: 'f',
-      description:
-        'Export format: png, jpg, webp, svg, pdf, pptx, jsx, html, fig, storybook (default: png)',
+      description: `Export format: ${FORMAT_IDS.join(', ')} (default: png)`,
       default: 'png'
     },
     scale: { type: 'string', alias: 's', description: 'Export scale (default: 1)', default: '1' },
@@ -370,17 +362,9 @@ export default defineCommand({
     ...appTargetOptions
   },
   async run({ args }) {
-    const format = args.format.toUpperCase() as
-      | RasterExportFormat
-      | 'SVG'
-      | 'JSX'
-      | 'FIG'
-      | 'HTML'
-      | 'STORYBOOK'
+    const format = args.format.toUpperCase()
     if (!ALL_FORMATS.has(format)) {
-      printError(
-        `Invalid format "${args.format}". Use png, jpg, webp, svg, pdf, pptx, jsx, html, fig, or storybook.`
-      )
+      printError(`Invalid format "${args.format}". Use ${FORMAT_LIST}.`)
       process.exit(1)
     }
 
