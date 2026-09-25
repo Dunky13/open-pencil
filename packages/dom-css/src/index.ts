@@ -1,7 +1,7 @@
 import type * as DesignTypes from './types'
 
 export { exportHTMLBundle } from './html-export'
-export { exportStorybook, generatedStorySource } from './storybook-export'
+export { exportStorybook, generatedStorySource, storyImagePaths } from './storybook/export'
 export { serializeHTML, serializeNode } from './serialize'
 export { createBrowserCSSRuntime, createCSSRuntime, createHeadlessCSSRuntime } from './runtime'
 export {
@@ -64,7 +64,7 @@ export type {
 } from './browser'
 export type { CompileTailwindCSSOptions } from './tailwind'
 export type { ExportHTMLBundle, ExportHTMLBundleOptions, ExportHTMLFile } from './html-export'
-export type { ExportStorybookOptions, StorybookFramework } from './storybook-export'
+export type { ExportStorybookOptions, StorybookFramework } from './storybook/export'
 export type { SerializeHTMLOptions } from './serialize'
 export type { ToSceneGraphOptions } from './to-scene-graph'
 export type CSSComputeOptions = DesignTypes.CSSComputeOptions

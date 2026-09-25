@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { unzipSync } from 'fflate'
 
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
+import { storyImagePaths } from '@open-pencil/dom-css'
 
 import { runOpenPencilCLI } from '#tests/helpers/cli'
 import { cliSourcePath } from '#tests/helpers/paths'
@@ -296,8 +297,8 @@ test('export CLI writes Storybook stories with design images', async () => {
   expect(stdout).toContain('Exported 1 story files')
   const story = await Bun.file(join(output, 'Badge.stories.ts')).text()
   expect(story).toContain("from '@storybook/vue3-vite'")
-  expect(story).toContain('title: "Library/Badge"')
-  expect(story).toContain('new URL("./Badge.design/Default.png", import.meta.url).href')
+  expect(story).toContain("title: 'Library/Badge'")
+  expect(storyImagePaths(story)).toEqual(['./Badge.design/Default.png'])
   const png = new Uint8Array(await Bun.file(join(output, 'Badge.design/Default.png')).arrayBuffer())
   expect(new TextDecoder().decode(png.slice(1, 4))).toBe('PNG')
 })

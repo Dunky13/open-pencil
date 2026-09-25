@@ -37,9 +37,24 @@ function buttonGraph() {
   return { graph, page }
 }
 
+interface Story {
+  name: string
+  args: Record<string, string>
+  parameters?: { design: { name: string; type: string; url: string }[] }
+}
+
 interface StoryModule {
-  default: { title: string; args: Record<string, string>; render: (args: object) => string }
+  default: {
+    title: string
+    args: Record<string, string>
+    argTypes: Record<string, unknown>
+    render: (args: object) => string
+  }
   [story: string]: unknown
+}
+
+function storyExport(module: StoryModule, name: string): Story {
+  return module[name] as Story
 }
 
 async function importStory(content: string): Promise<StoryModule> {
@@ -56,13 +71,15 @@ describe('exportStorybook', () => {
 
     expect(files.map((file) => file.path)).toEqual(['Button.stories.ts'])
     const content = String(files[0]?.content)
-    expect(content).toContain(`"Size": { control: 'select', options: ["Small", "Large"] }`)
     expect(content).toContain('openpencil://open?file=design%2Fui%20kit.fig&node=Button')
     // Variant layers named `Size=Small` are unique here, so each story links to its own.
     expect(content).toContain('openpencil://open?file=design%2Fui%20kit.fig&node=Size%3DLarge')
 
     const story = await importStory(content)
     expect(story.default.title).toBe('Library/Button')
+    expect(story.default.argTypes).toEqual({
+      Size: { control: 'select', options: ['Small', 'Large'] }
+    })
     expect(story.default.args).toEqual({ Size: 'Small' })
     expect(content.indexOf('export const Small')).toBeLessThan(
       content.indexOf('export const Large')
@@ -137,14 +154,12 @@ describe('exportStorybook', () => {
       'Button.stories.ts'
     ])
     expect(rendered).toHaveLength(2)
-    const content = String(files[2]?.content)
-    expect(content).toContain(
-      `const design1 = new URL("./Button.design/Large.png", import.meta.url).href`
-    )
-    expect(content).toContain(`{ name: 'Design', type: 'image', url: design1 }`)
+    const story = await importStory(String(files[2]?.content))
+    const [link, image] = storyExport(story, 'Large').parameters?.design ?? []
+    expect(image).toMatchObject({ name: 'Design', type: 'image' })
+    expect(image?.url).toEndWith('/Button.design/Large.png')
     // A second `Size=Large` layer makes that name ambiguous, so the story links to the set.
-    const large = content.split('\n').find((line) => line.startsWith('export const Large'))
-    expect(large).toContain('node=Button"')
+    expect(link?.url).toEndWith('node=Button')
   })
 
   it('gives same-named components on a page distinct titles', async () => {
@@ -155,13 +170,13 @@ describe('exportStorybook', () => {
 
     const files = await exportStorybook(graph, { framework: 'html' })
     expect(files.map((file) => file.path)).toEqual(['Card.stories.ts', 'Card2.stories.ts'])
-    expect(String(files[1]?.content)).toContain('title: "Library/Card 2"')
+    expect((await importStory(String(files[1]?.content))).default.title).toBe('Library/Card 2')
 
     // Storybook ids ignore case, so `library/Card` would collide with `Library/Card`.
     const lower = graph.addPage('library')
     graph.createNode('COMPONENT', lower.id, { name: 'Card', width: 5, height: 5 })
     const withLower = await exportStorybook(graph, { framework: 'html' })
-    expect(String(withLower[2]?.content)).toContain('title: "library/Card 3"')
+    expect((await importStory(String(withLower[2]?.content))).default.title).toBe('library/Card 3')
 
     // A one-page export names its files as the full export does.
     const other = graph.addPage('Other')

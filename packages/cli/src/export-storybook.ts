@@ -16,6 +16,7 @@ import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 import {
   exportStorybook,
   generatedStorySource,
+  storyImagePaths,
   type StorybookFramework
 } from '@open-pencil/dom-css'
 
@@ -69,21 +70,11 @@ async function conflict(target: string, owner: Owner): Promise<Error> {
   )
 }
 
-const DESIGN_IMAGE = /new URL\(("(?:[^"\\]|\\.)*"), import\.meta\.url\)/g
-
 /** The design images a generated story references, relative to the output directory. */
 function referencedImages(content: string): string[] {
-  return [...content.matchAll(DESIGN_IMAGE)].flatMap((match) => {
-    let url: unknown
-    try {
-      url = JSON.parse(match[1] ?? '')
-    } catch {
-      return []
-    }
-    return typeof url === 'string' && /^\.\/[^/]+\.design\/[^/]+\.png$/.test(url)
-      ? [url.slice(2)]
-      : []
-  })
+  return storyImagePaths(content).flatMap((url) =>
+    /^\.\/[^/]+\.design\/[^/]+\.png$/.test(url) ? [url.slice(2)] : []
+  )
 }
 
 /**

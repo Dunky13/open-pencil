@@ -1,11 +1,12 @@
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import { deriveSlashVariantProperties } from '@open-pencil/scene-graph/variant-properties'
 
-import { sceneNodeToDesignDocument } from './from-scene-graph'
-import type { ExportHTMLFile } from './html-export'
-import { serializeHTML } from './serialize'
+import { sceneNodeToDesignDocument } from '../from-scene-graph'
+import type { ExportHTMLFile } from '../html-export'
+import { serializeHTML } from '../serialize'
+import { printStoryModule, type StoryDesign, type StorybookFramework } from './module'
 
-export type StorybookFramework = 'react' | 'vue' | 'html'
+export { storyImagePaths, type StorybookFramework } from './module'
 
 export interface ExportStorybookOptions {
   framework?: StorybookFramework
@@ -31,20 +32,6 @@ interface StoryGroup {
   props: { name: string; options: string[] }[]
   variants: StoryVariant[]
   linkNode?: string
-}
-
-const FRAMEWORKS: Record<StorybookFramework, { types: string; imports: string; render: string }> = {
-  react: {
-    types: '@storybook/react-vite',
-    imports: "import { createElement } from 'react'\n",
-    render: "createElement('div', { dangerouslySetInnerHTML: { __html: variantHTML(args) } })"
-  },
-  vue: {
-    types: '@storybook/vue3-vite',
-    imports: "import { h } from 'vue'\n",
-    render: "({ setup: () => () => h('div', { innerHTML: variantHTML(args) }) })"
-  },
-  html: { types: '@storybook/html-vite', imports: '', render: 'variantHTML(args)' }
 }
 
 /** A JSON string that stays on one line inside a `//` comment. */
@@ -82,8 +69,6 @@ export function generatedStorySource(content: string): { source: string; page: s
   const page = parseQuoted(match?.[2])
   return source !== null && page !== null ? { source, page } : null
 }
-
-const lit = (value: string) => JSON.stringify(value)
 
 function isExported(node: SceneNode): boolean {
   return node.visible && !node.internalOnly
@@ -225,14 +210,10 @@ interface ModuleContext {
   images?: string[]
 }
 
-function designParameter(entries: string[]): string {
-  return entries.length === 0 ? '' : `parameters: { design: [${entries.join(', ')}] }, `
-}
-
-function designLink(context: ModuleContext, node: string | undefined): string[] {
+function designLink(context: ModuleContext, node: string | undefined): StoryDesign[] {
   if (!context.linkPath || !node) return []
   const url = `openpencil://open?file=${encodeURIComponent(context.linkPath)}&node=${encodeURIComponent(node)}`
-  return [`{ name: 'OpenPencil', type: 'link', url: ${lit(url)} }`]
+  return [{ type: 'link', url }]
 }
 
 /** Story export names, which also name the design images. */
@@ -244,69 +225,43 @@ function storyNames(group: StoryGroup): string[] {
 }
 
 function storyModule(group: StoryGroup, context: ModuleContext): string {
-  const { framework, uniqueNames, images } = context
-  const { types, imports, render } = FRAMEWORKS[framework]
+  const { uniqueNames, images = [] } = context
   const { props, variants } = group
-  const argsType =
-    props.length === 0
-      ? 'Record<string, never>'
-      : `{ ${props.map((p) => `${lit(p.name)}: ${p.options.map(lit).join(' | ')}`).join('; ')} }`
-  const argsLiteral = (values: string[]) =>
-    `{ ${props.map((p, i) => `${lit(p.name)}: ${lit(values[i] ?? '')}`).join(', ')} }`
-  const argTypes = props
-    .map(
-      (p) => `${lit(p.name)}: { control: 'select', options: [${p.options.map(lit).join(', ')}] }`
-    )
-    .join(', ')
   const names = storyNames(group)
-  const stories = variants.map((variant, i) => {
-    const label =
-      props.length === 0
-        ? 'Default'
-        : props.map((p, j) => `${p.name}=${variant.values[j] ?? ''}`).join(', ')
-    // The link scheme addresses layers by name, so only a name no other layer carries is linked.
-    const linkNode = [variant.node.name, group.linkNode].find(
-      (name) => name !== undefined && uniqueNames.has(name)
-    )
-    const design = [
-      ...designLink(context, linkNode),
-      ...(images?.[i] ? [`{ name: 'Design', type: 'image', url: design${i} }`] : [])
-    ]
-    return `export const ${names[i]}: Story = { name: ${lit(label)}, ${designParameter(design)}args: ${argsLiteral(variant.values)} }`
+  const module = printStoryModule({
+    framework: context.framework,
+    title: group.title,
+    name: group.name,
+    props,
+    variants: variants.map((variant) => ({
+      values: variant.values,
+      html: nodeHTML(context.graph, variant.node)
+    })),
+    metaDesign: designLink(
+      context,
+      group.linkNode && uniqueNames.has(group.linkNode) ? group.linkNode : undefined
+    ),
+    images,
+    stories: variants.map((variant, i) => {
+      // The link scheme addresses layers by name, so only a name no other layer carries is linked.
+      const linkNode = [variant.node.name, group.linkNode].find(
+        (name) => name !== undefined && uniqueNames.has(name)
+      )
+      return {
+        exportName: names[i] ?? '',
+        label:
+          props.length === 0
+            ? 'Default'
+            : props.map((p, j) => `${p.name}=${variant.values[j] ?? ''}`).join(', '),
+        values: variant.values,
+        design: [
+          ...designLink(context, linkNode),
+          ...(images[i] ? [{ type: 'image' as const, variant: i }] : [])
+        ]
+      }
+    })
   })
-  // `new URL(…, import.meta.url)` is bundled like an import but needs no ambient PNG types.
-  const imageImports = (images ?? []).map(
-    (path, i) => `const design${i} = new URL(${lit(`./${path}`)}, import.meta.url).href\n`
-  )
-
-  return `${generatedStoryHeader(context.source ?? 'a design document', group.page)}
-import type { Meta, StoryObj } from '${types}'
-${imports}${imageImports.join('')}
-type Args = ${argsType}
-
-const variants: Record<string, string> = {
-${variants.map((v) => `  ${lit(JSON.stringify(v.values))}: ${lit(nodeHTML(context.graph, v.node))},`).join('\n')}
-}
-
-function variantHTML(args: Args): string {
-  const key = JSON.stringify([${props.map((p) => `args[${lit(p.name)}]`).join(', ')}])
-  const html = variants[key]
-  if (html === undefined) throw new Error(${lit(`${group.name} has no variant `)} + key)
-  return html
-}
-
-const meta = {
-  title: ${lit(group.title)},
-  ${designParameter(designLink(context, group.linkNode && uniqueNames.has(group.linkNode) ? group.linkNode : undefined))}args: ${argsLiteral(variants[0]?.values ?? [])},
-  argTypes: { ${argTypes} },
-  render: (args) => ${render}
-} satisfies Meta<Args>
-
-export default meta
-type Story = StoryObj<Args>
-
-${stories.join('\n')}
-`
+  return `${generatedStoryHeader(context.source ?? 'a design document', group.page)}\n${module}\n`
 }
 
 /** Storybook ids ignore case and punctuation, so `Library/Card` and `library/card` collide. */
