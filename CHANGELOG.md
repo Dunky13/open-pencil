@@ -14,6 +14,7 @@
 ### Changed
 
 - `openpencil://` and web `?node=` links select the layer on another page when the current page has none, switching to that page.
+- Show download progress with a percentage and transferred size while installing a desktop update, instead of an indeterminate message that lasted until the restart.
 
 ### Fixed
 
