@@ -4,14 +4,7 @@ import { basename, dirname, extname, join, resolve } from 'node:path'
 import { defineCommand } from 'citty'
 import { toUint8Array } from 'js-base64'
 
-import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
-import { exportWebFontFaceAssets } from '@open-pencil/core/text/web-font/assets'
-import {
-  exportHTMLBundle,
-  sceneNodesToTailwindJSX,
-  sceneGraphToDesignDocument,
-  type ExportHTMLBundleOptions
-} from '@open-pencil/dom-css'
+import { BUILTIN_IO_FORMATS, IORegistry, type ExportResult } from '@open-pencil/core/io'
 
 import { isAppMode, requireFile, rpc } from '#cli/app-client'
 import { appTargetOptions, appTargetRPCArgs } from '#cli/app-target'
@@ -27,8 +20,8 @@ import { applyExportFontPolicy, exportFontRoots, FONT_POLICIES } from './font-po
 import { exportStorybookFromFile } from './storybook'
 
 const io = new IORegistry(BUILTIN_IO_FORMATS)
-// HTML and Storybook go through DOM/CSS exporters; every other format is a Core IO adapter.
-const FORMAT_IDS = [...io.listExportFormats('node').map((format) => format.id), 'html', 'storybook']
+// Storybook writes a folder of stories, so it stays a CLI command beside the IO formats.
+const FORMAT_IDS = [...io.listExportFormats('node').map((format) => format.id), 'storybook']
 const ALL_FORMATS = new Set(FORMAT_IDS.map((id) => id.toUpperCase()))
 const FORMAT_LIST = `${FORMAT_IDS.slice(0, -1).join(', ')}, or ${FORMAT_IDS.at(-1)}`
 
@@ -136,68 +129,16 @@ function targetLabel(pageName?: string, nodeId?: string, wholeDocument = false):
 
 type FileExportTarget = { scope: 'node'; nodeId: string } | { scope: 'page'; pageId: string }
 
-async function writeHTMLFiles(
-  output: string,
-  bundle: Awaited<ReturnType<typeof exportHTMLBundle>>
-) {
-  const entrypoint = bundle.files.find((file) => file.path === bundle.entrypoint)
-  if (!entrypoint) {
-    printError(`HTML export did not include ${bundle.entrypoint}.`)
-    process.exit(1)
-  }
-
-  await writeAndLog(output, entrypoint.content)
-  const outputDir = dirname(output)
-  const assetFiles = bundle.files.filter((file) => file.path !== bundle.entrypoint)
-  for (const file of assetFiles) {
-    const assetPath = join(outputDir, file.path)
+/** Writes the export and the files it refers to, which sit next to it. */
+async function writeExport(output: string, result: ExportResult) {
+  await writeAndLog(output, result.data as string | Uint8Array)
+  const assets = result.assets ?? []
+  for (const asset of assets) {
+    const assetPath = join(dirname(output), asset.path)
     await mkdir(dirname(assetPath), { recursive: true })
-    await writeFile(assetPath, file.content)
+    await writeFile(assetPath, asset.content as string | Uint8Array)
   }
-  if (assetFiles.length > 0) console.log(ok(`Assets: ${assetFiles.length} files`))
-}
-
-async function exportTailwindJSXFromFile(
-  args: ExportArgs,
-  graph: Awaited<ReturnType<typeof loadDocument>>,
-  target: FileExportTarget,
-  defaultName: string
-) {
-  const nodeIds =
-    target.scope === 'node' ? [target.nodeId] : (graph.getNode(target.pageId)?.childIds ?? [])
-  const jsx = sceneNodesToTailwindJSX(graph, nodeIds)
-  if (!jsx) {
-    printError('Nothing to export.')
-    process.exit(1)
-  }
-  await writeAndLog(resolve(args.output ?? exportFileName(defaultName, 'jsx')), jsx)
-  console.log(ok(`Target: ${targetLabel(args.page, args.node)}`))
-}
-
-async function exportHTMLFromFile(
-  args: ExportArgs,
-  graph: Awaited<ReturnType<typeof loadDocument>>,
-  target: FileExportTarget,
-  defaultName: string
-) {
-  const document = sceneGraphToDesignDocument(graph, {
-    rootId: target.scope === 'page' ? target.pageId : target.nodeId
-  })
-  const output = resolve(args.output ?? exportFileName(defaultName, 'html'))
-  const assetBasePath = `${basename(output, extname(output))}.assets`
-  const bundle = await exportHTMLBundle(document, {
-    html: args.html as ExportHTMLBundleOptions['html'],
-    style: args.css as ExportHTMLBundleOptions['style'],
-    assets: args.assets as ExportHTMLBundleOptions['assets'],
-    fonts:
-      args.fonts === 'assets'
-        ? async (fonts, assetBasePath) =>
-            (await exportWebFontFaceAssets({ fonts, assetBasePath })).assets
-        : 'none',
-    assetBasePath
-  })
-  await writeHTMLFiles(output, bundle)
-  console.log(ok(`Target: ${targetLabel(args.page, args.node)}`))
+  if (assets.length > 0) console.log(ok(`Assets: ${assets.length} files`))
 }
 
 function prepareGraphForExport(
@@ -216,16 +157,28 @@ async function executeFileExport(
   formatId: string,
   graph: Awaited<ReturnType<typeof loadDocument>>,
   target: FileExportTarget,
-  options:
-    | { format?: string; scale?: number; quality?: number; renderThumbnail?: boolean }
-    | undefined,
-  wholeDocument: boolean
+  options: unknown,
+  wholeDocument: boolean,
+  fileName: string
 ) {
   if (wholeDocument) {
     if (formatId === 'fig') return io.writeDocument(formatId, graph, options)
-    return io.exportContent(formatId, { graph, target: { scope: 'document' } }, options)
+    return io.exportContent(formatId, { graph, target: { scope: 'document' }, fileName }, options)
   }
-  return io.exportContent(formatId, { graph, target }, options)
+  return io.exportContent(formatId, { graph, target, fileName }, options)
+}
+
+function exportOptions(format: string, args: ExportArgs): unknown {
+  if (format === 'FIG') return { renderThumbnail: true }
+  if (format === 'HTML')
+    return { html: args.html, style: args.css, assets: args.assets, fonts: args.fonts }
+  if (formatSupportsScale(format))
+    return {
+      format,
+      scale: Number(args.scale),
+      quality: args.quality ? Number(args.quality) : undefined
+    }
+  return undefined
 }
 
 async function exportFromFile(format: string, args: ExportArgs) {
@@ -263,41 +216,21 @@ async function exportFromFile(format: string, args: ExportArgs) {
     process.exit(1)
   }
 
-  const formatId = format.toLowerCase()
-  let options:
-    | { format?: string; scale?: number; quality?: number; renderThumbnail?: boolean }
-    | undefined
-  if (format === 'HTML') {
-    await exportHTMLFromFile(args, graph, target, defaultName)
-    return
-  }
-
-  // Tailwind JSX is projected through DOM/CSS, like HTML; OpenPencil JSX is a Core adapter.
-  if (format === 'JSX' && args.style === 'tailwind') {
-    await exportTailwindJSXFromFile(args, graph, target, defaultName)
-    return
-  }
-
-  if (format === 'FIG') {
-    options = { renderThumbnail: true }
-  } else if (formatSupportsScale(format)) {
-    options = {
-      format,
-      scale: Number(args.scale),
-      quality: args.quality ? Number(args.quality) : undefined
-    }
-  }
-
-  const result = await executeFileExport(formatId, graph, target, options, wholeDocument)
-  const output = resolve(
-    args.output ??
-      exportFileName(
-        defaultName,
-        result.extension,
-        formatSupportsScale(format) ? Number(args.scale) : undefined
-      )
+  // `--style tailwind` keeps the JSX spelling of the Tailwind JSX format.
+  const formatId =
+    format === 'JSX' && args.style === 'tailwind' ? 'tailwind-jsx' : format.toLowerCase()
+  const scale = formatSupportsScale(format) ? Number(args.scale) : undefined
+  const extension = io.getFormat(formatId)?.extensions[0] ?? formatId
+  const output = resolve(args.output ?? exportFileName(defaultName, extension, scale))
+  const result = await executeFileExport(
+    formatId,
+    graph,
+    target,
+    exportOptions(format, args),
+    wholeDocument,
+    basename(output)
   )
-  await writeAndLog(output, result.data as string | Uint8Array)
+  await writeExport(output, result)
   console.log(ok(`Target: ${targetLabel(args.page, args.node, wholeDocument)}`))
 }
 

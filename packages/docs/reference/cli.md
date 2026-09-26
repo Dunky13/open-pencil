@@ -98,13 +98,13 @@ openpencil export [file] [options]
 
 | Option | Alias | Description |
 |--------|-------|-------------|
-| `--format` | `-f` | `png` (default), `jpg`, `webp`, `svg`, `jsx`, `html`, `fig`, `storybook` |
+| `--format` | `-f` | `png` (default), `jpg`, `webp`, `svg`, `pdf`, `pptx`, `jsx`, `tailwind-jsx`, `html`, `fig`, `storybook` |
 | `--output` | `-o` | Output file path (default: `<name>.<format>`); a directory for `storybook` (default: `<name>-stories`) |
 | `--scale` | `-s` | Export scale (default: 1) |
 | `--quality` | `-q` | Quality 0–100, JPG/WEBP only (default: 90) |
 | `--page` | | Page name (default: first page; `fig`, `pptx`, and `storybook` default to every page) |
 | `--node` | | Node ID to export (default: all top-level nodes) |
-| `--style` | | JSX style: `openpencil` (default), `tailwind` |
+| `--style` | | JSX style: `openpencil` (default), `tailwind` (same as `-f tailwind-jsx`) |
 | `--html` | | HTML mode: `fragment` (default), `standalone` |
 | `--css` | | HTML CSS output: `inline` (default), `tailwind` |
 | `--assets` | | Standalone HTML assets: `inline` (default), `external` |
