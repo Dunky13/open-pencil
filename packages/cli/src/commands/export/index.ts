@@ -2,11 +2,13 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 
 import { defineCommand } from 'citty'
+import { toUint8Array } from 'js-base64'
 
-import { decodeBase64 } from '@open-pencil/core/bytes'
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
+import { exportWebFontFaceAssets } from '@open-pencil/core/text/web-font/assets'
 import {
   exportHTMLBundle,
+  sceneNodesToTailwindJSX,
   sceneGraphToDesignDocument,
   type ExportHTMLBundleOptions
 } from '@open-pencil/dom-css'
@@ -95,7 +97,7 @@ async function exportViaApp(format: string, args: ExportArgs) {
       printError('Nothing to export.')
       process.exit(1)
     }
-    const data = decodeBase64(result.base64)
+    const data = toUint8Array(result.base64)
     await writeAndLog(resolve(args.output ?? 'export.pdf'), data)
     return
   }
@@ -117,7 +119,7 @@ async function exportViaApp(format: string, args: ExportArgs) {
     scale: Number(args.scale),
     format: format.toLowerCase()
   })
-  const data = decodeBase64(result.base64)
+  const data = toUint8Array(result.base64)
   const ext = format.toLowerCase() === 'jpg' ? 'jpg' : format.toLowerCase()
   await writeAndLog(resolve(args.output ?? `export.${ext}`), data)
 }
@@ -155,6 +157,23 @@ async function writeHTMLFiles(
   if (assetFiles.length > 0) console.log(ok(`Assets: ${assetFiles.length} files`))
 }
 
+async function exportTailwindJSXFromFile(
+  args: ExportArgs,
+  graph: Awaited<ReturnType<typeof loadDocument>>,
+  target: FileExportTarget,
+  defaultName: string
+) {
+  const nodeIds =
+    target.scope === 'node' ? [target.nodeId] : (graph.getNode(target.pageId)?.childIds ?? [])
+  const jsx = sceneNodesToTailwindJSX(graph, nodeIds)
+  if (!jsx) {
+    printError('Nothing to export.')
+    process.exit(1)
+  }
+  await writeAndLog(resolve(args.output ?? exportFileName(defaultName, 'jsx')), jsx)
+  console.log(ok(`Target: ${targetLabel(args.page, args.node)}`))
+}
+
 async function exportHTMLFromFile(
   args: ExportArgs,
   graph: Awaited<ReturnType<typeof loadDocument>>,
@@ -170,7 +189,11 @@ async function exportHTMLFromFile(
     html: args.html as ExportHTMLBundleOptions['html'],
     style: args.css as ExportHTMLBundleOptions['style'],
     assets: args.assets as ExportHTMLBundleOptions['assets'],
-    fonts: args.fonts as ExportHTMLBundleOptions['fonts'],
+    fonts:
+      args.fonts === 'assets'
+        ? async (fonts, assetBasePath) =>
+            (await exportWebFontFaceAssets({ fonts, assetBasePath })).assets
+        : 'none',
     assetBasePath
   })
   await writeHTMLFiles(output, bundle)
@@ -249,9 +272,13 @@ async function exportFromFile(format: string, args: ExportArgs) {
     return
   }
 
-  if (format === 'JSX') {
-    options = { format: args.style }
-  } else if (format === 'FIG') {
+  // Tailwind JSX is projected through DOM/CSS, like HTML; OpenPencil JSX is a Core adapter.
+  if (format === 'JSX' && args.style === 'tailwind') {
+    await exportTailwindJSXFromFile(args, graph, target, defaultName)
+    return
+  }
+
+  if (format === 'FIG') {
     options = { renderThumbnail: true }
   } else if (formatSupportsScale(format)) {
     options = {

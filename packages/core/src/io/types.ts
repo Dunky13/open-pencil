@@ -1,10 +1,9 @@
 import type { CanvasKit } from 'canvaskit-wasm'
 
 import type { SceneGraph } from '@open-pencil/scene-graph'
+import type { RenderColorSpace } from '@open-pencil/scene-graph/color'
 
 import type { SkiaRenderer } from '#core/canvas'
-import type { RenderColorSpace } from '#core/color/management'
-import type { JSXFormat } from '#core/design-jsx'
 
 import type { RasterExportFormat } from './formats/raster'
 
@@ -80,10 +79,6 @@ export interface RasterExportOptions {
 export interface SVGExportOptions {
   xmlDeclaration?: boolean
   colorSpace?: RenderColorSpace
-}
-
-export interface JSXExportOptions {
-  format?: JSXFormat
 }
 
 export interface ExportResult {

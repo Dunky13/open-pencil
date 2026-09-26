@@ -11,7 +11,8 @@ export {
   tailwindHTMLToSceneGraph
 } from './convert'
 export { designDocumentToSceneGraph } from './to-scene-graph'
-export { sceneGraphToDesignDocument } from './from-scene-graph'
+export { sceneGraphToDesignDocument, sceneNodeToDesignDocument } from './from-scene-graph'
+export { designDocumentToTailwindJSX, sceneNodesToTailwindJSX } from './jsx/print'
 export { compileTailwindCSS } from './tailwind'
 export {
   browserHTMLToDesignDocument,
@@ -63,7 +64,14 @@ export type {
   BrowserToSceneGraphOptions
 } from './browser'
 export type { CompileTailwindCSSOptions } from './tailwind'
-export type { ExportHTMLBundle, ExportHTMLBundleOptions, ExportHTMLFile } from './html-export'
+export type {
+  ExportHTMLBundle,
+  ExportHTMLBundleOptions,
+  ExportHTMLFile,
+  WebFontFaceAsset,
+  WebFontFaceRequest,
+  WebFontFaceResolver
+} from './html-export'
 export type { ExportStorybookOptions, StorybookFile, StorybookFramework } from './storybook/export'
 export type { SerializeHTMLOptions } from './serialize'
 export type { ToSceneGraphOptions } from './to-scene-graph'
