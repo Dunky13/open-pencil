@@ -482,14 +482,6 @@ function estimateTextWidth(node: SceneNode): number {
   return node.text.length * node.fontSize * 0.65
 }
 
-function fixTextWidths(graph: SceneGraph): void {
-  for (const node of graph.getAllNodes()) {
-    if (node.type !== 'TEXT' || !node.text || node.text.length <= 1) continue
-    if (node.width >= node.fontSize * 2) continue
-    node.width = estimateTextWidth(node)
-  }
-}
-
 export function parsePenFile(json: string): SceneGraph {
   const doc: PenDocument = JSON.parse(json)
   const graph = new SceneGraph()
@@ -515,7 +507,6 @@ export function parsePenFile(json: string): SceneGraph {
   populateInstances(graph)
   resolveThemeVariables(doc.children, graph, ctx)
   fixInstanceWidths(graph)
-  fixTextWidths(graph)
 
   if (graph.getPages(true).length === 0) {
     graph.addPage('Page 1')

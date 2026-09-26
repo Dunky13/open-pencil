@@ -198,6 +198,25 @@ describe('parsePenFile — text without a width', () => {
     expect(label?.width).toBe(0)
   })
 
+  test('keeps an explicit narrow width on multi-character text', () => {
+    const graph = parsePenFile(
+      JSON.stringify({
+        version: '2.17',
+        children: [
+          {
+            id: 'label',
+            name: 'label',
+            type: 'text',
+            content: 'Label',
+            width: 0,
+            textGrowth: 'fixed-width'
+          }
+        ]
+      } satisfies PenDocument)
+    )
+    expect(graph.getAllNodes().find((node) => node.type === 'TEXT')?.width).toBe(0)
+  })
+
   test('keeps an explicit zero width', () => {
     const graph = parsePenFile(
       JSON.stringify({
