@@ -221,14 +221,20 @@ function watchDocuments(files: string[], onChange: (file: string) => Promise<voi
   }
 }
 
-const GLOB_CHARACTERS = /[*?[\]{}]/
-
-/** The documents to export: each argument is a file, or a quoted glob pattern for many. */
+/**
+ * The documents to export: each argument is a file, or a quoted glob pattern
+ * for many.
+ *
+ * An existing path is that file, so a name containing glob syntax still opens
+ * directly. Anything else goes to `glob()`, which matches a plain path to
+ * itself and expands every pattern it supports, including the extglobs and
+ * escapes that inspecting the string for glob characters gets wrong.
+ */
 async function resolveDocuments(args: StorybookArgs): Promise<string[]> {
   const patterns = args._?.length ? args._ : [requireFile(args.file)]
   const documents: string[] = []
   for (const pattern of patterns) {
-    if (!GLOB_CHARACTERS.test(pattern)) {
+    if (existsSync(pattern)) {
       documents.push(pattern)
       continue
     }

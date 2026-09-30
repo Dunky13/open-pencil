@@ -285,6 +285,55 @@ test('export CLI --beside writes the stories of every matched document next to i
   })
 })
 
+test('export CLI expands an extglob pattern', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
+  await writeComponentFixture(dir, ['Card'], 'card.fig')
+  await writeComponentFixture(dir, ['Chip'], 'chip.fig')
+  await writeComponentFixture(dir, ['Draft'], 'draft.fig')
+
+  const { stderr, exitCode } = await runOpenPencilCLI([
+    'export',
+    join(dir, '+(card|chip).fig'),
+    '--format',
+    'storybook',
+    '--no-design-images',
+    '--beside'
+  ])
+
+  expect(stderr).toBe('')
+  expect(exitCode).toBe(0)
+  const manifest: unknown = JSON.parse(await Bun.file(join(dir, MANIFEST)).text())
+  expect(manifest).toEqual({
+    version: 1,
+    files: {
+      'Card.stories.ts': { source: 'card.fig', page: 'Library' },
+      'Chip.stories.ts': { source: 'chip.fig', page: 'Library' }
+    }
+  })
+})
+
+test('export CLI opens a document whose name contains glob syntax', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
+  const file = await writeComponentFixture(dir, ['Card'], 'card[1].fig')
+
+  const { stderr, exitCode } = await runOpenPencilCLI([
+    'export',
+    file,
+    '--format',
+    'storybook',
+    '--no-design-images',
+    '--beside'
+  ])
+
+  expect(stderr).toBe('')
+  expect(exitCode).toBe(0)
+  const manifest: unknown = JSON.parse(await Bun.file(join(dir, MANIFEST)).text())
+  expect(manifest).toEqual({
+    version: 1,
+    files: { 'Card.stories.ts': { source: 'card[1].fig', page: 'Library' } }
+  })
+})
+
 test('export CLI --beside records documents that share a folder in one manifest', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'open-pencil-storybook-cli-'))
   const card = await writeComponentFixture(dir, ['Card'], 'card.fig')
