@@ -187,6 +187,7 @@ export class SceneGraph {
   private previewObservers: NodePreviewObserver[] = []
   private sourceMetadataPreservationDepth = 0
   private importedStateApplicationDepth = 0
+  private importedIdGenerator: (() => string) | undefined
   private layoutMutationDepth = 0
   private derivedLayoutDepth = 0
   positionPreviewVersion = 0
@@ -441,7 +442,7 @@ export class SceneGraph {
   private generateEntityId(issued?: Set<string>): string {
     let limit = Infinity
     for (let attempt = 0; attempt < limit; attempt++) {
-      const id = this.idGenerator()
+      const id = (this.importedIdGenerator ?? this.idGenerator)()
       if (this.isEntityIdTaken(id) || issued?.has(id)) {
         if (limit === Infinity) limit = this.entityIdCount() + (issued?.size ?? 0) + 1
         continue
@@ -562,12 +563,15 @@ export class SceneGraph {
     return this.sourceMetadataPreservationDepth > 0
   }
 
-  applyImportedStateDuring<T>(fn: () => T): T {
+  applyImportedStateDuring<T>(fn: () => T, idGenerator?: () => string): T {
+    const previousGenerator = this.importedIdGenerator
+    this.importedIdGenerator = idGenerator ?? previousGenerator
     this.importedStateApplicationDepth++
     try {
       return this.preserveSourceMetadataDuring(fn)
     } finally {
       this.importedStateApplicationDepth--
+      this.importedIdGenerator = previousGenerator
     }
   }
 

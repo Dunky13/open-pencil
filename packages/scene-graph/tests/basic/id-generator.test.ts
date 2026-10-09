@@ -10,6 +10,25 @@ function sequence(prefix: string): () => string {
 }
 
 describe('SceneGraph ID generator', () => {
+  test('scopes imported allocation through nested work and restores authoring after errors', () => {
+    const graph = new SceneGraph(sequence('7'))
+    const page = pageId(graph)
+    const imported = sequence('12')
+    expect(() => graph.applyImportedStateDuring(() => {
+      expect(graph.createNode('RECTANGLE', page).id).toBe('12:1')
+      graph.applyImportedStateDuring(() => {
+        expect(graph.createNode('RECTANGLE', page).id).toBe('12:2')
+      })
+      graph.applyImportedStateDuring(() => {
+        expect(graph.createNode('RECTANGLE', page).id).toBe('13:1')
+      }, sequence('13'))
+      expect(graph.createNode('RECTANGLE', page).id).toBe('12:3')
+      throw new Error('Interrupted import')
+    }, imported)).toThrow('Interrupted import')
+    expect(graph.isApplyingImportedState).toBe(false)
+    expect(graph.createNode('RECTANGLE', page).id).toBe('7:3')
+  })
+
   test('uses an injected generator for the root, pages, nodes, variables, and collections', () => {
     const graph = new SceneGraph(sequence('7'))
 
