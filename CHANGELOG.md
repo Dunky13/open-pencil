@@ -5,7 +5,6 @@
 ### Breaking changes
 
 - New entity IDs use random numeric GUIDs in all runtimes, including headless tools; reproducible authoring can inject a `SceneGraph` ID generator or explicitly call `setIdSession`. Existing saved GUIDs and imported CLI handles are retained (#770).
-- `FigArchiveRecordInfo` includes required `recordIds` covering every saved record, so exporters reserve GUIDs on unopened pages (#770).
 
 - `SceneNode` from `@open-pencil/scene-graph` has `isExposedInstance`, whether an instance inside a component shows its properties on instances of that component, so code that builds `SceneNode` objects itself must include it. In the plugin API, `isExposedInstance` and `exposedInstances` follow that flag and Figma's rules instead of treating an instance whose swap is bound to a property as exposed: only an instance in a component's own layers whose component has properties can be exposed, and its copies in instances report it but cannot change it.
 - `usePosition` from `@open-pencil/vue` reports and edits `x`, `y`, and `rotation` as Figma's properties panel does: the turned layer's box on the canvas, measured from its frame or page, and its counterclockwise angle. `getDefaultCanvasBgColor` and `CANVAS_BG_COLOR_DARK` are removed from `@open-pencil/core/constants`; new pages use `PAGE_DEFAULT_BACKGROUNDS`, keyed by interface theme.
