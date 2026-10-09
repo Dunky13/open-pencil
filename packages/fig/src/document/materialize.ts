@@ -1,5 +1,5 @@
 import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
-import { SceneGraph, type SceneNode } from '@open-pencil/scene-graph'
+import { generateId, SceneGraph, type SceneNode } from '@open-pencil/scene-graph'
 
 import {
   reconcileLiveComponentEdits,
@@ -28,6 +28,7 @@ import {
   type ComponentCheckpoint
 } from './component/checkpoint'
 import { linkComponentPropertyValues, resolveVariantPropertyValues } from './component/values'
+import type { ComponentConstruction } from './components'
 import { loadPageTransaction } from './load-transaction'
 import { applyDocumentMetadata } from './metadata'
 import { createArchiveDocumentReader, createDocumentReader } from './read'
@@ -47,12 +48,15 @@ export function materializeDocument(
   changes: readonly NodeChange[],
   blobs: Uint8Array[] = [],
   options: DocumentAssemblyOptions = {}
-) {
+): AssemblyState {
   return materializeReader(createDocumentReader(changes, options.pageIds), blobs, options)
 }
 
 /** Own parsed archive records; do not create a second full source tree. */
-export function materializeFigArchive(bytes: ArrayBuffer, options: DocumentAssemblyOptions = {}) {
+export function materializeFigArchive(
+  bytes: ArrayBuffer,
+  options: DocumentAssemblyOptions = {}
+): AssemblyState {
   const { reader, blobs, images } = createArchiveDocumentReader(bytes, options.pageIds)
   return materializeReader(reader, blobs, { ...options, images: options.images ?? new Map(images) })
 }
@@ -130,7 +134,7 @@ export function createFigDocumentSession(
 ) {
   const archive = createArchiveDocumentReader(bytes, new Set())
   const sessionOptions = { ...options, images: options.images ?? new Map(archive.images) }
-  const state = resume
+  const state: AssemblyState = resume
     ? restoreAssemblyState(resume, archive.reader, sessionOptions)
     : materializeReader(archive.reader, archive.blobs, sessionOptions)
   state.graph.figKiwiVersion = archive.figKiwiVersion
@@ -193,10 +197,19 @@ function createAssemblyState(
   reader: ReturnType<typeof createDocumentReader>,
   options: DocumentAssemblyOptions
 ): AssemblyState {
-  const graph = new SceneGraph()
+  // Imported runtime handles remain reproducible for CLI inspection and patches. Authored
+  // entities use the production allocator even when created in a previously imported graph.
+  let initializing = true
+  let nextImportedId = 1
+  const graph: SceneGraph = new SceneGraph(() =>
+    initializing || graph.isApplyingImportedState ? `0:${nextImportedId++}` : generateId()
+  )
+  initializing = false
   applyDocumentMetadata(graph, reader.documentRecord)
   for (const [hash, bytes] of options.images ?? []) graph.images.set(hash, bytes.slice())
-  materializeVariableResources(graph, reader.resources, options.onUnsupportedResource)
+  graph.applyImportedStateDuring(() =>
+    materializeVariableResources(graph, reader.resources, options.onUnsupportedResource)
+  )
   for (const page of graph.getPages()) graph.deleteNode(page.id)
   return {
     graph,
@@ -237,7 +250,7 @@ function materializeReader(
   blobs: Uint8Array[],
   options: DocumentAssemblyOptions,
   previous?: AssemblyState
-) {
+): AssemblyState {
   for (const diagnostic of reader.bindingDiagnostics) {
     if (!options.onUnresolvedBinding)
       throw new Error(`Unresolved binding ${diagnostic.sourceId}: ${diagnostic.field}`)
@@ -246,6 +259,20 @@ function materializeReader(
   const pages = reader.pages.map((page) => reader.readPage(page.id, options))
   const plan = reader.planComponents(pages, options)
   const state = previous ?? createAssemblyState(reader, options)
+  return state.graph.applyImportedStateDuring(() =>
+    materializeReaderInto(reader, pages, plan, blobs, options, state, previous !== undefined)
+  )
+}
+
+function materializeReaderInto(
+  reader: ReturnType<typeof createDocumentReader>,
+  pages: InstanceOccurrence[],
+  plan: ComponentConstruction[],
+  blobs: Uint8Array[],
+  options: DocumentAssemblyOptions,
+  state: AssemblyState,
+  resumed: boolean
+): AssemblyState {
   const { graph, sources, components, savedSizeNodes, componentIds } = state
   const existingNodeIds = new Set(graph.nodes.keys())
   const layoutScales = new Map<string, number>()
@@ -311,7 +338,7 @@ function materializeReader(
     if (!parentId) throw new Error(`Missing source container ${occurrence.sourceId}`)
     const ordered: string[] = []
     for (const child of occurrence.children) {
-      if (previous) reconcileOccurrenceStructure(child, graph, components)
+      if (resumed) reconcileOccurrenceStructure(child, graph, components)
       if (child.mainComponentId !== null && !sources.has(child.sourceId)) {
         const materialized = materializeInstance(graph, parentId, child, componentIds, {
           blobs,
@@ -319,7 +346,7 @@ function materializeReader(
         })
         rememberDerivedSizes(materialized.nodes)
         linkInstanceSourceChildren(child, materialized, components)
-        if (previous) {
+        if (resumed) {
           reconcileLiveComponentEdits(graph, materialized)
           if (materialized.root.componentId) resync.add(materialized.root.id)
         }

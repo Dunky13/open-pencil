@@ -4,6 +4,9 @@
 
 ### Breaking changes
 
+- New entity IDs use random numeric GUIDs in all runtimes, including headless tools; reproducible authoring can inject a `SceneGraph` ID generator or explicitly call `setIdSession`. Existing saved GUIDs and imported CLI handles are retained (#770).
+- `FigArchiveRecordInfo` includes required `recordIds` covering every saved record, so exporters reserve GUIDs on unopened pages (#770).
+
 - `SceneNode` from `@open-pencil/scene-graph` has `isExposedInstance`, whether an instance inside a component shows its properties on instances of that component, so code that builds `SceneNode` objects itself must include it. In the plugin API, `isExposedInstance` and `exposedInstances` follow that flag and Figma's rules instead of treating an instance whose swap is bound to a property as exposed: only an instance in a component's own layers whose component has properties can be exposed, and its copies in instances report it but cannot change it.
 - `usePosition` from `@open-pencil/vue` reports and edits `x`, `y`, and `rotation` as Figma's properties panel does: the turned layer's box on the canvas, measured from its frame or page, and its counterclockwise angle. `getDefaultCanvasBgColor` and `CANVAS_BG_COLOR_DARK` are removed from `@open-pencil/core/constants`; new pages use `PAGE_DEFAULT_BACKGROUNDS`, keyed by interface theme.
 - `SkiaRenderer.hitTestFrameTitle` no longer takes the selected IDs: it finds the name of any frame on the page or in a section under a point, selected or not.
@@ -37,6 +40,8 @@
 - `fetchIcon`, `fetchIcons`, `searchIcons`, `searchIconsBatch`, and `clearIconCache` are removed from `@open-pencil/core`. Icons come from an `IconProvider` instead: `iconify` is the default Iconify provider, `createIconifyProvider()` makes one with its own cache, and `placeIcon` places an icon that keeps its name. A custom provider also implements `previews()`, `collections()`, and `browse()`, which give pickers each icon's SVG markup, the sets, and a set's icons.
 
 ### Added
+
+- Export deterministic saved-record review artifacts with `openpencil diff snapshot`, covering all FIG pages and embedded resources without archive timestamps or thumbnails (#770).
 
 - Save the open document to cloud storage with **File → Save to storage…**. The tab stays bound to the stored copy, so Save and auto-save write to the bucket; before storage is configured, the command opens its settings. A new Cloud Storage guide covers connecting a bucket, CORS, syncing, and provider notes.
 - Add a variant to a standalone component from the header's **Add variant** button, as in Figma (#847): it becomes a component set named after it, whose existing instances and properties carry over, with a `Property 1=Variant2` copy below. A set's variant properties are rows of its **Properties** list, each opening to rename it and add, rename, reorder, or remove its values; removing a value variants still use moves them to another value. Variants that share a combination of values are named in a notice that selects them.
