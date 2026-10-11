@@ -114,12 +114,12 @@ ja:automation.webmcpUnsupported
 ja:code.copyJSXReference
 ja:code.editorHTMLCSSLabel
 ja:code.noSelectionDesignJSX
-ja:code.noSelectionTailwindJSX
 ja:code.writeJSX
 ja:collaboration.invalidRoomLink
 ja:collaboration.joinRoomDescription
 ja:collaboration.pasteRoomLinkOrId
 ja:collaboration.unreachableDescription
+ja:collaboration.voiceDeniedDescription
 ja:commands.paletteDescription
 ja:credentials.apiKey
 ja:credentials.getAPIKey
@@ -130,6 +130,7 @@ ja:designCheck.ruleTouchTargetSizeHelp
 ja:diagnostics.acpFailed
 ja:diagnostics.chatCompleted
 ja:diagnostics.chatFailed
+ja:diagnostics.chatStopped
 ja:diagnostics.description
 ja:diagnostics.eventCount
 ja:diagnostics.mcpFailed
@@ -172,6 +173,9 @@ ja:panels.sizingFillFr
 ja:panels.sizingFixedPx
 ja:panels.xAxis
 ja:panels.yAxis
+ja:panels.shaderPreset
+ja:panels.invalidShaderPreset
+ja:panels.shaderNeedsWebGPU
 ja:recovery.dialogDescription
 ja:rendering.reloadRequired
 ja:rendering.settingsDescription
@@ -309,12 +313,12 @@ zh-cn:automation.webmcpUnsupported
 zh-cn:code.copyJSXReference
 zh-cn:code.editorHTMLCSSLabel
 zh-cn:code.noSelectionDesignJSX
-zh-cn:code.noSelectionTailwindJSX
 zh-cn:code.writeJSX
 zh-cn:collaboration.invalidRoomLink
 zh-cn:collaboration.joinRoomDescription
 zh-cn:collaboration.pasteRoomLinkOrId
 zh-cn:collaboration.unreachableDescription
+zh-cn:collaboration.voiceDeniedDescription
 zh-cn:commands.paletteDescription
 zh-cn:credentials.apiKey
 zh-cn:credentials.getAPIKey
@@ -325,6 +329,7 @@ zh-cn:designCheck.ruleTouchTargetSizeHelp
 zh-cn:diagnostics.acpFailed
 zh-cn:diagnostics.chatCompleted
 zh-cn:diagnostics.chatFailed
+zh-cn:diagnostics.chatStopped
 zh-cn:diagnostics.description
 zh-cn:diagnostics.eventCount
 zh-cn:diagnostics.mcpFailed
@@ -395,3 +400,6 @@ zh-cn:variables.expression
 zh-cn:variables.expressionHint
 zh-cn:variables.conditionHint
 zh-cn:variables.conditionCustom
+zh-cn:panels.shaderPreset
+zh-cn:panels.invalidShaderPreset
+zh-cn:panels.shaderNeedsWebGPU

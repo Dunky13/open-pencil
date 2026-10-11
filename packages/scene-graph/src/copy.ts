@@ -272,6 +272,7 @@ export function cloneNodeProps(
     dashPattern: copyOpt(src.dashPattern, (a) => [...a]),
     fontVariations: copyOpt(src.fontVariations, (a) => a.map((v) => ({ ...v }))),
     fontFeatures: copyOpt(src.fontFeatures, (a) => a.map((v) => ({ ...v }))),
+    textParagraphs: copyOpt(src.textParagraphs, (a) => a.map((v) => ({ ...v }))),
     textDecorationFills: copyOpt(src.textDecorationFills, copyFills),
     fillGeometry: copyOpt(src.fillGeometry, copyGeometryPaths),
     strokeGeometry: copyOpt(src.strokeGeometry, copyGeometryPaths),
@@ -295,6 +296,7 @@ export function cloneNodeProps(
       : null,
     textPathData: src.textPathData ? structuredClone(src.textPathData) : null,
     textPathBox: src.textPathBox ? { ...src.textPathBox } : null,
-    gridPosition: src.gridPosition ? { ...src.gridPosition } : null
+    gridPosition: src.gridPosition ? { ...src.gridPosition } : null,
+    targetAspectRatio: src.targetAspectRatio ? { ...src.targetAspectRatio } : null
   }
 }

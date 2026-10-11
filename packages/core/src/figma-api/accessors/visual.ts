@@ -1,4 +1,11 @@
-import { newStrokeGeometry, type Fill, type SceneNode, type Stroke } from '@open-pencil/scene-graph'
+import {
+  newStrokeGeometry,
+  type Color,
+  type Fill,
+  type GradientStop,
+  type SceneNode,
+  type Stroke
+} from '@open-pencil/scene-graph'
 import { normalizeColor } from '@open-pencil/scene-graph/color'
 import { copyFills, copyStrokes } from '@open-pencil/scene-graph/copy'
 
@@ -9,6 +16,8 @@ import {
   type ProxyThis
 } from '#core/figma-api/accessor-utils'
 import { parseFigmaEffects, toFigmaEffect, type FigmaEffect } from '#core/figma-api/effects'
+import { getTextStyle } from '#core/figma-api/text/style'
+import { textStyleChanges } from '#core/text/character-style'
 
 function styleReference(
   internals: NodeProxyInternals,
@@ -29,6 +38,28 @@ function paintDefaults(paint: Partial<Pick<Fill, 'opacity' | 'visible'>>) {
   return { opacity: paint.opacity ?? 1, visible: paint.visible ?? true }
 }
 
+/** A colour as Figma's plugin API takes it, RGB with an optional alpha. */
+type FigmaColor = Omit<Color, 'a'> & Partial<Pick<Color, 'a'>>
+
+/** A paint as Figma's plugin API takes it: RGB colours, optional opacity and visibility. */
+export type FigmaPaint = Omit<Fill, 'color' | 'opacity' | 'visible' | 'gradientStops'> &
+  Partial<Pick<Fill, 'opacity' | 'visible'>> & {
+    color?: FigmaColor
+    gradientStops?: Array<Omit<GradientStop, 'color'> & { color: FigmaColor }>
+  }
+
+export function figmaPaintToFill(fill: FigmaPaint): Fill {
+  return {
+    ...fill,
+    ...paintDefaults(fill),
+    color: normalizeColor(fill.color),
+    gradientStops: fill.gradientStops?.map((stop) => ({
+      ...stop,
+      color: normalizeColor(stop.color)
+    }))
+  }
+}
+
 export function installVisualNodeProxyAccessors(
   prototype: object,
   internals: NodeProxyInternals,
@@ -36,21 +67,21 @@ export function installVisualNodeProxyAccessors(
 ): void {
   Object.defineProperties(prototype, {
     fills: {
-      get(this: ProxyThis): readonly Fill[] {
-        return Object.freeze(copyFills(raw(this, internals).fills))
+      // Text reads mixed while its characters are filled differently, and setting it fills them all.
+      get(this: ProxyThis): readonly Fill[] | symbol {
+        const node = raw(this, internals)
+        if (node.type !== 'TEXT') return Object.freeze(copyFills(node.fills))
+        const fills = getTextStyle(node, 'fills', mixed)
+        return typeof fills === 'symbol' ? fills : Object.freeze(fills as Fill[])
       },
       set(this: ProxyThis, value: readonly Fill[]) {
-        updateNode(this, internals, {
-          fills: value.map((fill) => ({
-            ...fill,
-            ...paintDefaults(fill),
-            color: normalizeColor(fill.color),
-            gradientStops: fill.gradientStops?.map((stop) => ({
-              ...stop,
-              color: normalizeColor(stop.color)
-            }))
-          }))
-        })
+        const node = raw(this, internals)
+        const fills = value.map(figmaPaintToFill)
+        updateNode(
+          this,
+          internals,
+          node.type === 'TEXT' ? textStyleChanges(node, { fills }) : { fills }
+        )
       }
     },
     strokes: {

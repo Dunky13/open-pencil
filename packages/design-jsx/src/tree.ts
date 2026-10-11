@@ -109,9 +109,9 @@ export type StyleProps = {
   columnGap?: number | DesignVariable
   justify?: 'start' | 'end' | 'center' | 'between'
   justifyContent?: 'start' | 'end' | 'center' | 'between'
-  items?: 'start' | 'end' | 'center' | 'stretch'
-  align?: 'start' | 'end' | 'center' | 'stretch'
-  alignItems?: 'start' | 'end' | 'center' | 'stretch'
+  items?: 'start' | 'end' | 'center' | 'stretch' | 'baseline'
+  align?: 'start' | 'end' | 'center' | 'stretch' | 'baseline'
+  alignItems?: 'start' | 'end' | 'center' | 'stretch' | 'baseline'
   grow?: number
 
   w?: number | 'fill' | 'hug' | DesignVariable
@@ -186,6 +186,39 @@ type NodeProps = StyleProps & {
 
 export type BaseProps = NodeProps & { properties?: never }
 export type TextProps = BaseProps
+
+/** A `<Span>`'s props: the character styles of `<Text>`, under the same names. */
+export type SpanProps = Pick<
+  StyleProps,
+  | 'size'
+  | 'fontSize'
+  | 'font'
+  | 'fontFamily'
+  | 'weight'
+  | 'fontWeight'
+  | 'color'
+  | 'fill'
+  | 'fills'
+  | 'lineHeight'
+  | 'letterSpacing'
+> & {
+  key?: string | number
+  style?: Record<string, unknown>
+  italic?: boolean
+  textDecoration?: 'none' | 'underline' | 'strikethrough'
+  children?: unknown
+}
+
+/** A `<Paragraph>`'s props: a list item at `level` 1–5, or a plain paragraph, and its spacing. */
+export type ParagraphProps = {
+  key?: string | number
+  list?: 'ordered' | 'unordered'
+  level?: number
+  spacing?: number
+  listSpacing?: number
+  indent?: number
+  children?: unknown
+}
 
 export type ComponentProps = NodeProps & {
   properties?: SceneNode['componentPropertyDefinitions']

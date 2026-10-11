@@ -6,6 +6,12 @@ import { dirname, join } from 'node:path'
 import {
   accordionComponent,
   badgeToggleSet,
+  numberFieldComponent,
+  plainBadgeSet,
+  progressComponent,
+  sliderComponent,
+  textareaComponent,
+  textFieldSet,
   buttonSet,
   collapsibleSet,
   labelledButtonSet,
@@ -15,7 +21,9 @@ import {
   tabsComponent,
   toggleGroupComponent
 } from '#dom-css-tests/behaviours/fixtures'
-import { cssRules } from '#dom-css-tests/helpers'
+import { shaderBackdropSet, shaderHeroSet } from '#dom-css-tests/export/components/shader-fixtures'
+import { cssRules, fileText } from '#dom-css-tests/helpers'
+import type { ComponentStyling } from '#dom-css/export'
 import { exportStorybook } from '#dom-css/index'
 import { createElement, type ComponentType } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -27,6 +35,7 @@ const APP_PACKAGES = [
   'react-dom',
   'radix-ui',
   '@iconify/react',
+  'shaders',
   'storybook',
   '@types/react'
 ]
@@ -45,8 +54,8 @@ afterAll(() => rm(output, { recursive: true, force: true }))
 type Props = Record<string, unknown>
 
 /** Exports a fixture's set to React stories and loads the component and stories it writes. */
-async function generate(fixture: ReturnType<typeof switchSet>) {
-  const files = await exportStorybook(fixture.graph, { framework: 'react' })
+async function generate(fixture: ReturnType<typeof switchSet>, styling?: ComponentStyling) {
+  const files = await exportStorybook(fixture.graph, { framework: 'react', styling })
   const name = fixture.set.name
   // Bun caches a folder's listing once it imports from it, so each export gets its own.
   const folder = await mkdtemp(join(output, `${name}-`))
@@ -86,6 +95,167 @@ async function typeErrors(folder: string, name: string): Promise<string[]> {
 
 const render = (component: ComponentType<Props>, props: Props = {}) =>
   renderToStaticMarkup(createElement(component, props))
+
+describe('generated React plain components', () => {
+  test('take variant, text, boolean, and slot properties as props, and type-check', async () => {
+    const { component, folder } = await generate(plainBadgeSet())
+    expect(await typeErrors(folder, 'Badge')).toEqual([])
+    const rest = render(component)
+    expect(rest).toContain('data-tone="Neutral"')
+    // The icon the design hides at rest is an element only while its boolean is on.
+    const elements = (html: string) => html.match(/<div/g)?.length
+    expect(elements(rest)).toBe(2)
+    expect(elements(render(component, { icon: true }))).toBe(3)
+    expect(render(component, { tone: 'Danger', label: 'Hot' })).toMatch(
+      /data-tone="Danger"[\s\S]*Hot/
+    )
+    // A slot shows the design's content unless the caller passes its own.
+    expect(rest).toContain('Note')
+    const filled = render(component, { extra: createElement('b', null, 'Custom') })
+    expect(filled).toContain('<b>Custom</b>')
+    expect(filled).not.toContain('Note')
+  })
+})
+
+describe('generated React components styled with Tailwind', () => {
+  test('carry their states as variants in place of a CSS module, and type-check', async () => {
+    const { files, component, folder } = await generate(switchSet(), 'tailwind')
+    const source = fileText(files, 'Switch.tsx')
+
+    expect(files.map((file) => file.path).sort()).toEqual(['Switch.stories.ts', 'Switch.tsx'])
+    expect(await typeErrors(folder, 'Switch')).toEqual([])
+    expect(source).not.toContain('styles')
+    // The root names its group, which the thumb's checked look keys on.
+    expect(source).toMatch(/"group\/switch [^"]*data-\[state=checked\]:bg-\[#4F45E6\]/)
+    expect(source).toContain('group-data-[state=checked]/switch:left-5')
+    const on = render(component, { defaultChecked: true })
+    expect(on).toContain('data-state="checked"')
+    expect(on).toMatch(/class="group\/switch [^"]*"/)
+    // A class the caller passes joins the utilities rather than replacing them.
+    expect(render(component, { className: 'custom' })).toMatch(/class="group\/switch [^"]* custom"/)
+  })
+
+  test('play a shader behind the layer, placed by utilities', async () => {
+    const { files, folder } = await generate(shaderHeroSet(), 'tailwind')
+    const source = fileText(files, 'Hero.tsx')
+
+    expect(await typeErrors(folder, 'Hero')).toEqual([])
+    expect(source).toContain(
+      '<ShaderCanvas className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit]" disableTelemetry>'
+    )
+    // The layer holds the shader in its own stacking context.
+    expect(source).toMatch(/"group\/hero relative [^"]*\bisolate\b/)
+  })
+})
+
+describe('generated React shader fills', () => {
+  test('play the shader behind the layer, with telemetry off, and type-check', async () => {
+    const { files, folder } = await generate(shaderHeroSet())
+    const source = fileText(files, 'Hero.tsx')
+    const css = fileText(files, 'Hero.module.css')
+
+    expect(await typeErrors(folder, 'Hero')).toEqual([])
+    expect(source).toMatch(
+      /import \{\s*Shader as ShaderCanvas,\s*Aurora as ShaderAurora,\s*FilmGrain as ShaderFilmGrain\s*\} from "shaders\/react"/
+    )
+    expect(source).toContain('<ShaderCanvas className={styles["hero-shader"]} disableTelemetry>')
+    expect(source).toContain(
+      '<ShaderAurora colorA="#ff3300" curtainCount={2} center={{ x: 0.5, y: 0 }} />'
+    )
+    // The shader comes first, so the title draws over it.
+    expect(source.indexOf('<ShaderCanvas')).toBeLessThan(source.indexOf('Northern lights'))
+    const styles = [...cssRules(css).values()]
+    expect(styles).toContainEqual(expect.objectContaining({ isolation: 'isolate' }))
+    expect(styles).toContainEqual(
+      expect.objectContaining({ position: 'absolute', inset: '0', 'z-index': '-1' })
+    )
+  })
+})
+
+describe('generated React shader backdrops', () => {
+  test('a layer with nothing in it plays its shader, not an image of it', async () => {
+    const { files, folder } = await generate(shaderBackdropSet())
+    const source = fileText(files, 'Card.tsx')
+
+    expect(await typeErrors(folder, 'Card')).toEqual([])
+    expect(source).not.toContain('<img')
+    expect(source).not.toContain('data:image')
+    expect(source).toContain('<ShaderCanvas')
+  })
+})
+
+describe('generated React form controls', () => {
+  test('import the types a number field with a slot uses, and type-check', async () => {
+    const fixture = numberFieldComponent()
+    const { graph, set } = fixture
+    graph.updateNode(set.id, {
+      componentPropertyDefinitions: [
+        ...set.componentPropertyDefinitions,
+        { id: 'hint', name: 'Hint', type: 'SLOT', defaultValue: '' }
+      ]
+    })
+    const hint = graph.createNode('FRAME', set.id, {
+      name: 'Hint',
+      width: 20,
+      height: 20,
+      componentPropertyReferences: [{ propertyId: 'hint', field: 'SLOT_CONTENT' }]
+    })
+    graph.createNode('TEXT', hint.id, { name: 'Note', text: '?' })
+    const { folder } = await generate(fixture)
+    expect(await typeErrors(folder, 'Quantity')).toEqual([])
+  })
+
+  test('type-check against Radix and React', async () => {
+    for (const fixture of [
+      sliderComponent(),
+      progressComponent(),
+      numberFieldComponent(),
+      textFieldSet(),
+      textareaComponent()
+    ]) {
+      const { folder } = await generate(fixture)
+      expect(await typeErrors(folder, fixture.set.name)).toEqual([])
+    }
+  })
+
+  test("a slider starts at the design's value as Radix's list, within its range", async () => {
+    const { component } = await generate(sliderComponent())
+    // Radix places its range from the value, already on the server.
+    expect(render(component)).toContain('right:40%')
+    expect(render(component, { defaultValue: [25] })).toContain('right:75%')
+  })
+
+  test("a progress bar's indicator reaches the value's share of its range", async () => {
+    const { component } = await generate(progressComponent())
+    expect(render(component)).toContain('width:25%')
+    expect(render(component, { value: 150 })).toContain('width:75%')
+    // A value past the end fills the indicator, and no further.
+    expect(render(component, { value: 500 })).toContain('width:100%')
+  })
+
+  test('a number field is a native number input between steppers named for what they do', async () => {
+    const { component } = await generate(numberFieldComponent())
+    const html = render(component)
+    expect(html).toMatch(/<input[^>]*type="number"[^>]*value="2"/)
+    expect(html).toMatch(/<input[^>]*min="1"[^>]*max="10"/)
+    expect(html).toContain('aria-label="Decrease"')
+    expect(html).toContain('aria-label="Increase"')
+    expect(render(component, { defaultValue: 7 })).toMatch(/<input[^>]*value="7"/)
+  })
+
+  test('a text field takes its props on its input, starting empty with its placeholder', async () => {
+    const { component } = await generate(textFieldSet())
+    const html = render(component, { name: 'email', className: 'custom' })
+    expect(html).toMatch(/<input[^>]*placeholder="Email"[^>]*name="email"/)
+    // The caller's class goes on the root, as on every generated component.
+    expect(html).toMatch(/^<div class="[^"]*custom/)
+  })
+
+  test('a textarea starts with its words', async () => {
+    const { component } = await generate(textareaComponent())
+    expect(render(component)).toMatch(/<textarea[^>]*>Tell us more<\/textarea>/)
+  })
+})
 
 describe('generated React components', () => {
   test('a switch is a Radix switch whose state follows its props', async () => {

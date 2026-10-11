@@ -38,6 +38,19 @@ describe('JSX text', () => {
   )
 })
 
+describe('JSX inline text', () => {
+  test('keeps spaces at its ends, which JSX keeps on one line', () => {
+    const span = jsx.element('Span', [], [jsx.inlineText('b')], 0, true)
+    expect(card([], [jsx.inlineText(' a '), span, jsx.inlineText(' ')])).toBe(
+      '<Card> a <Span>b</Span> </Card>'
+    )
+  })
+
+  test.each(['{braces}', 'a & b', 'one\ntwo', ''])('writes %p as a string expression', (value) => {
+    expect(card([], [jsx.inlineText(value)])).toBe(`<Card>{${JSON.stringify(value)}}</Card>`)
+  })
+})
+
 describe('JSX elements', () => {
   test('put children on indented lines', () => {
     const child = jsx.element('Item', [], [], 1)
@@ -82,5 +95,13 @@ describe('filling templates', () => {
     expect(jsx.printModule(module)).toBe(
       ['import a from "a";', '', 'function f(props: ButtonProps) {}'].join('\n')
     )
+  })
+})
+
+describe('numbers', () => {
+  test('print as source writes them, a negative one with its sign', () => {
+    expect(es.printExpression(es.number(2.5))).toBe('2.5')
+    expect(es.printExpression(es.number(-10))).toBe('-10')
+    expect(() => es.number(Number.NaN)).toThrow()
   })
 })

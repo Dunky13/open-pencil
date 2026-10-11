@@ -89,11 +89,17 @@
       "import": "./dist/guides.js",
       "default": "./dist/guides.js"
     },
-    "./layout-guides": {
-      "types": "./dist/layout-guides.d.ts",
-      "bun": "./src/layout-guides.ts",
-      "import": "./dist/layout-guides.js",
-      "default": "./dist/layout-guides.js"
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "bun": "./src/layout/index.ts",
+      "import": "./dist/layout.js",
+      "default": "./dist/layout.js"
+    },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "bun": "./src/text/index.ts",
+      "import": "./dist/text.js",
+      "default": "./dist/text.js"
     },
     "./types": {
       "types": "./dist/types.d.ts",
@@ -127,7 +133,7 @@
     },
     "./text-picture": {
       "types": "./dist/text-picture.d.ts",
-      "bun": "./src/text-picture.ts",
+      "bun": "./src/text/picture.ts",
       "import": "./dist/text-picture.js",
       "default": "./dist/text-picture.js"
     },
@@ -161,11 +167,23 @@
       "import": "./dist/geometry.js",
       "default": "./dist/geometry.js"
     },
+    "./polygon": {
+      "types": "./dist/polygon.d.ts",
+      "bun": "./src/polygon.ts",
+      "import": "./dist/polygon.js",
+      "default": "./dist/polygon.js"
+    },
     "./resize": {
       "types": "./dist/resize.d.ts",
       "bun": "./src/resize.ts",
       "import": "./dist/resize.js",
       "default": "./dist/resize.js"
+    },
+    "./gradient": {
+      "types": "./dist/gradient.d.ts",
+      "bun": "./src/gradient.ts",
+      "import": "./dist/gradient.js",
+      "default": "./dist/gradient.js"
     },
     "./random": {
       "types": "./dist/random.d.ts",
@@ -199,7 +217,7 @@
     },
     "./text-direction": {
       "types": "./dist/text-direction.d.ts",
-      "bun": "./src/text-direction.ts",
+      "bun": "./src/text/direction.ts",
       "import": "./dist/text-direction.js",
       "default": "./dist/text-direction.js"
     }
