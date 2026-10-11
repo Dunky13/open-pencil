@@ -103,4 +103,3 @@ export function writeFigContainer(
     options.version ?? FIG_KIWI_DEFAULT_VERSION
   )
 }
-export { createFigReview, serializeFigReview } from './review'

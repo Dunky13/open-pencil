@@ -5,7 +5,6 @@ import create from './create'
 import files from './files'
 import jsx from './jsx'
 import show from './show'
-import snapshot from './snapshot'
 import visual from './visual'
 
 export default defineCommand({
@@ -14,7 +13,6 @@ export default defineCommand({
     create,
     jsx,
     show,
-    snapshot,
     apply,
     visual,
     files

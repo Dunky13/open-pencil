@@ -5,7 +5,7 @@ import { isEqual } from 'es-toolkit/predicate'
 
 import { exportFigFile, initCodec, parseFigFile, SceneGraph } from '@open-pencil/core'
 import { populateAllFigPages, populateFigPage } from '@open-pencil/core/io/formats/fig'
-import { createFigReview, parseFigBuffer } from '@open-pencil/fig'
+import { parseFigBuffer } from '@open-pencil/fig'
 import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { guidToString } from '@open-pencil/kiwi/fig/guid'
 import type { SceneNode } from '@open-pencil/scene-graph'
@@ -40,11 +40,7 @@ test('independent headless branches preserve distinct new GUIDs across patched s
   expect(guidToString(expectDefined(rightRecord?.guid))).toBe(right.id)
   const reopened = await open(savedLeft)
   expect(layerNamed(reopened, left.name).source.id).toBe(left.id)
-  const review = createFigReview(Uint8Array.from(savedLeft).buffer)
-  const repeated = await exportFigFile(first)
-  expect(createFigReview(Uint8Array.from(repeated).buffer)).toBe(review)
-  // The review includes the unopened pages too, without populating the editor.
-  expect(review).toContain('"name":"Body"')
+  // Saving wrote into the archive: the pages not opened stay unpopulated.
   expect(hasPendingReaderPages(first)).toBe(true)
 })
 
