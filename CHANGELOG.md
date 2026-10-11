@@ -4,7 +4,6 @@
 
 ### Breaking changes
 
-
 - In scripts, a text node's `fontSize`, `fontName`, `fontWeight`, `fills`, `letterSpacing`, `lineHeight`, and `textDecoration` read `figma.mixed` while its characters differ, as in Figma, instead of the text's first value, and setting one restyles every character instead of only characters without a style of their own. `fills` is typed `readonly Fill[] | symbol`, so scripts that index it narrow it first.
 - `SceneNode` from `@open-pencil/scene-graph` has `textParagraphs`, `listSpacing`, `paragraphSpacing`, `paragraphIndent`, and `hangingList`, so code that builds `SceneNode` objects itself must include them. `SkiaRenderer.buildParagraph` returns a `TextLayout`, which answers the `Paragraph` queries the renderer and text editor use for the whole text and draws with `draw(canvas, x, y)`, instead of a CanvasKit `Paragraph`.
 - `AUTO_LAYOUT_BREAK_THRESHOLD` is removed from `@open-pencil/core/constants`: a layer dragged out of auto layout now leaves by how far its own edge is past the frame, not by a cursor margin.
@@ -49,11 +48,7 @@
 - `fetchIcon`, `fetchIcons`, `searchIcons`, `searchIconsBatch`, and `clearIconCache` are removed from `@open-pencil/core`. Icons come from an `IconProvider` instead: `iconify` is the default Iconify provider, `createIconifyProvider()` makes one with its own cache, and `placeIcon` places an icon that keeps its name. A custom provider also implements `previews()`, `collections()`, and `browse()`, which give pickers each icon's SVG markup, the sets, and a set's icons.
 - The editor's view state has a required `shapeHandleHover`, the selected shape whose radius, point count, and ratio handles the canvas shows; code that creates editor state itself must set it, as `createDefaultEditorViewState` does.
 - `defineTool` from `@open-pencil/core/tools` takes its `input` as a `v.strictObject` instead of a `v.object`, and `ToolDef.input` is a strict object schema, so a tool rejects arguments it does not declare.
-- New entity IDs use random numeric GUIDs in all runtimes, including headless tools; reproducible authoring can inject a `SceneGraph` ID generator or explicitly call `setIdSession`. Existing saved GUIDs and imported CLI handles are retained (#770).
-
-### Added
-
-
+- Every process mints new layer, variable, and collection IDs in a random session, as the editor already did, so `generateId()` no longer starts at `0:1` in the CLI, MCP, or scripts using `@open-pencil/scene-graph`. Layers that separate CLI or MCP runs add to copies of one `.fig` file are saved under their own GUIDs instead of the same `1:n` ones, while layers read from a file keep the same IDs on every run. Code that needs fixed IDs calls `setIdSession`, which now returns the previous session, or gives the `SceneGraph` its own generator (#770).
 - `RulerTheme` from `@open-pencil/core/canvas` no longer has `label`: ruler badges and size pills draw their text in the `foreground` of the editor state's new `selectionTheme`, which also sets the canvas selection color and defaults to the previous blue with white text.
 
 ### Added

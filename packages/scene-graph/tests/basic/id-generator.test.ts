@@ -14,17 +14,19 @@ describe('SceneGraph ID generator', () => {
     const graph = new SceneGraph(sequence('7'))
     const page = pageId(graph)
     const imported = sequence('12')
-    expect(() => graph.applyImportedStateDuring(() => {
-      expect(graph.createNode('RECTANGLE', page).id).toBe('12:1')
+    expect(() =>
       graph.applyImportedStateDuring(() => {
-        expect(graph.createNode('RECTANGLE', page).id).toBe('12:2')
-      })
-      graph.applyImportedStateDuring(() => {
-        expect(graph.createNode('RECTANGLE', page).id).toBe('13:1')
-      }, sequence('13'))
-      expect(graph.createNode('RECTANGLE', page).id).toBe('12:3')
-      throw new Error('Interrupted import')
-    }, imported)).toThrow('Interrupted import')
+        expect(graph.createNode('RECTANGLE', page).id).toBe('12:1')
+        graph.applyImportedStateDuring(() => {
+          expect(graph.createNode('RECTANGLE', page).id).toBe('12:2')
+        })
+        graph.applyImportedStateDuring(() => {
+          expect(graph.createNode('RECTANGLE', page).id).toBe('13:1')
+        }, sequence('13'))
+        expect(graph.createNode('RECTANGLE', page).id).toBe('12:3')
+        throw new Error('Interrupted import')
+      }, imported)
+    ).toThrow('Interrupted import')
     expect(graph.isApplyingImportedState).toBe(false)
     expect(graph.createNode('RECTANGLE', page).id).toBe('7:3')
   })
@@ -74,31 +76,25 @@ describe('SceneGraph ID generator', () => {
     expect(graph.createNode('RECTANGLE', pageId(graph)).id).toBe('7:6')
   })
 
-  test('the default generator uses uint32 GUID pairs outside the reserved sessions', () => {
-    const first = new SceneGraph()
-    const second = new SceneGraph()
-    const ids = [first.rootId, pageId(first), second.rootId, pageId(second)]
+  test('the default generator counts up in one random session outside the reserved sessions', () => {
+    const graph = new SceneGraph()
+    const [root, page] = [graph.rootId, pageId(graph)].map((id) => id.split(':').map(Number))
 
-    for (const id of ids) {
-      const [session, local] = id.split(':').map(Number)
-      expect(session).toBeGreaterThanOrEqual(2)
-      expect(session).toBeLessThan(2 ** 32)
-      expect(local).toBeGreaterThanOrEqual(0)
-      expect(local).toBeLessThan(2 ** 32)
-    }
-    expect(new Set(ids).size).toBe(ids.length)
+    expect(root[0]).toBeGreaterThanOrEqual(2)
+    expect(root[0]).toBeLessThan(2 ** 31)
+    expect(page).toEqual([root[0], root[1] + 1])
   })
 
   test('the ID session prefixes every ID minted afterwards', () => {
+    const previous = setIdSession(2_000_000_000)
     try {
-      setIdSession(2_000_000_000)
       const graph = new SceneGraph()
       const ids = [graph.rootId, pageId(graph), graph.createCollection('Colors').id]
       for (const id of ids) expect(id).toMatch(/^2000000000:\d+$/)
     } finally {
-      setIdSession()
+      setIdSession(previous)
     }
-    expect(new SceneGraph().rootId).not.toMatch(/^0:\d+$/)
+    expect(new SceneGraph().rootId).toMatch(new RegExp(`^${previous}:\\d+$`))
   })
 
   // Figma reads GUID parts as signed 32-bit integers and drops a paste with larger ones.
