@@ -40,8 +40,11 @@ test('independent headless branches preserve distinct new GUIDs across patched s
   expect(guidToString(expectDefined(rightRecord?.guid))).toBe(right.id)
   const reopened = await open(savedLeft)
   expect(layerNamed(reopened, left.name).source.id).toBe(left.id)
-  // Saving wrote into the archive: the pages not opened stay unpopulated.
+  // Saving wrote into the archive: the pages not opened stay unpopulated, and every record the
+  // file held, theirs included, is saved under its GUID.
   expect(hasPendingReaderPages(first)).toBe(true)
+  const saved = recordsOf(savedLeft)
+  expect([...recordsOf(bytes).keys()].filter((guid) => !saved.has(guid))).toEqual([])
 })
 
 /** A document over three pages: a frame of layers, a component, and a page of its instances. */
