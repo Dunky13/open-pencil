@@ -20,10 +20,10 @@ export function keycapOutline(font: Uint8Array): OutlineCommand[] {
   const glyph = parsed.charToGlyph(String.fromCodePoint(COMBINING_KEYCAP))
   if (!glyph.index) throw new Error('The source font has no keycap')
   const em = parsed.unitsPerEm
-  return glyph.path.commands.map((command) => {
+  return glyph.path.commands.map((command: OutlineCommand) => {
     const scaled: OutlineCommand = { type: command.type }
     for (const key of ['x', 'y', 'x1', 'y1', 'x2', 'y2'] as const) {
-      const value = (command as Record<string, number | undefined>)[key]
+      const value = command[key]
       if (value !== undefined) scaled[key] = round(key.startsWith('y') ? -value / em : value / em)
     }
     return scaled
