@@ -19,8 +19,8 @@ use fig_container::build_fig_file;
 use fonts::{list_system_fonts, load_system_font};
 use http::{cancel_http_request, proxy_http_request, ProxyHttpRequests};
 use menu::{
-    install_app_menu, native_menu_checked, set_native_menu_checked, set_native_menu_features,
-    update_app_menu, NativeMenuInputs, NativeMenuState,
+    install_app_menu, native_menu_checked, set_native_menu_checked, set_native_menu_enabled,
+    set_native_menu_features, update_app_menu, NativeMenuInputs, NativeMenuState,
 };
 use menu_events::handle_menu_event;
 use std::{
@@ -455,6 +455,7 @@ pub fn run() {
             set_native_menu_features,
             native_menu_checked,
             set_native_menu_checked,
+            set_native_menu_enabled,
             take_pending_open,
             take_pending_rooms,
             sharing_disabled_by_env,

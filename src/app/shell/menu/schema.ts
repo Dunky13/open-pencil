@@ -45,6 +45,8 @@ export interface AppMenuActionItem {
   accelerator?: string
   command?: EditorCommandId
   checkbox?: boolean
+  /** Initial native availability, before the editor synchronizes its selection. */
+  enabled?: boolean
   target?: AppMenuTarget
   handler?: AppMenuHandler
   feature?: AppMenuFeature
@@ -162,7 +164,7 @@ export const APP_MENU_SCHEMA = [
         command: 'selection.delete'
       },
       { id: 'selection.rename', label: 'Rename Selection…', shortcut: 'MOD+R' },
-      { id: 'selection.openImplementation', label: 'Open implementation story…' },
+      { id: 'selection.openImplementation', label: 'Open implementation story…', enabled: false },
       { type: 'separator' },
       {
         id: 'selection.selectAll',

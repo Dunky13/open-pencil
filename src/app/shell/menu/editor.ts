@@ -7,6 +7,7 @@ import { createSharedEditorMenuActions } from '@/app/shell/menu/actions/editor'
 import { createSelectionMenuActions } from '@/app/shell/menu/actions/selection'
 import { watchNativeMenuFeatures } from '@/app/shell/menu/features'
 import { openFileDialog, openFileFromPath } from '@/app/shell/menu/files'
+import { watchNativeImplementationMenu } from '@/app/shell/menu/implementation'
 import { useNativeMenuEvents } from '@/app/shell/menu/native-events'
 import { OPEN_RECENT_EVENT_PREFIX, watchRecentFilesMenu } from '@/app/shell/menu/recent-files'
 import { createSaveMenuActions } from '@/app/shell/menu/save-actions'
@@ -33,6 +34,7 @@ export function useEditorMenu() {
 
   watchRecentFilesMenu()
   watchNativeMenuFeatures()
+  watchNativeImplementationMenu(store)
 
   const { setTheme } = useAppTheme()
   const { runCommand } = useEditorCommands()

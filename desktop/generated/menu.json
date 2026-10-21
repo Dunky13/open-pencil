@@ -155,7 +155,8 @@
       },
       {
         "id": "selection.openImplementation",
-        "label": "Open implementation story…"
+        "label": "Open implementation story…",
+        "enabled": false
       },
       {
         "type": "separator"

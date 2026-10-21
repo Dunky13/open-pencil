@@ -22,6 +22,7 @@ struct MenuEntry {
     id: Option<String>,
     label: Option<String>,
     accelerator: Option<String>,
+    enabled: Option<bool>,
     #[serde(default)]
     checkbox: bool,
     /// A feature the frontend turns on before the item shows (`set_native_menu_features`).
@@ -30,11 +31,20 @@ struct MenuEntry {
     sub: Vec<MenuEntry>,
 }
 
-/// What the schema menu is built from besides the schema: recent files and enabled features.
+/// Inputs retained across schema menu rebuilds.
 #[derive(Default)]
 pub struct NativeMenuInputs {
     pub recent_files: Vec<String>,
     pub features: Vec<String>,
+    enabled: HashMap<String, bool>,
+}
+
+impl NativeMenuInputs {
+    fn item_enabled(&self, id: Option<&str>, default: Option<bool>) -> bool {
+        id.and_then(|id| self.enabled.get(id).copied())
+            .or(default)
+            .unwrap_or(true)
+    }
 }
 
 pub struct NativeMenuState(pub Mutex<NativeMenuInputs>);
@@ -138,6 +148,9 @@ fn build_submenu<R: tauri::Runtime>(
             }
         }
 
+        let enabled = build
+            .inputs
+            .item_enabled(entry.id.as_deref(), entry.enabled);
         if entry.checkbox {
             // A rebuild keeps what the menu it replaces had checked.
             let checked = entry
@@ -145,7 +158,9 @@ fn build_submenu<R: tauri::Runtime>(
                 .as_ref()
                 .and_then(|id| build.checked.get(id).copied())
                 .unwrap_or(true);
-            let mut item = CheckMenuItemBuilder::new(label).checked(checked);
+            let mut item = CheckMenuItemBuilder::new(label)
+                .checked(checked)
+                .enabled(enabled);
             if let Some(id) = &entry.id {
                 item = item.id(id);
             }
@@ -156,7 +171,7 @@ fn build_submenu<R: tauri::Runtime>(
             continue;
         }
 
-        let mut item = MenuItemBuilder::new(label);
+        let mut item = MenuItemBuilder::new(label).enabled(enabled);
         if let Some(id) = &entry.id {
             item = item.id(id);
         }
@@ -305,6 +320,33 @@ pub fn set_native_menu_checked<R: tauri::Runtime>(
     }
 }
 
+#[tauri::command]
+pub fn set_native_menu_enabled<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    // Serialize updates with menu rebuilds so a replaced item cannot lose its override.
+    let state = tauri::Manager::state::<NativeMenuState>(&app);
+    let mut inputs = state
+        .0
+        .lock()
+        .map_err(|_| "Menu state is unavailable".to_string())?;
+    let menu = app
+        .menu()
+        .ok_or_else(|| "Application menu is unavailable".to_string())?;
+    let item = find_menu_item(menu.items().map_err(|error| error.to_string())?, &id)
+        .ok_or_else(|| format!("Menu item not found: {id}"))?;
+    match item {
+        MenuItemKind::MenuItem(item) => item.set_enabled(enabled),
+        MenuItemKind::Check(item) => item.set_enabled(enabled),
+        _ => return Err(format!("Menu item does not support enabled state: {id}")),
+    }
+    .map_err(|error| error.to_string())?;
+    inputs.enabled.insert(id, enabled);
+    Ok(())
+}
+
 pub fn install_app_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     inputs: &NativeMenuInputs,
@@ -385,4 +427,38 @@ pub fn set_native_menu_features<R: tauri::Runtime>(
     features: Vec<String>,
 ) -> Result<(), String> {
     update_app_menu(&app, |inputs| inputs.features = features)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NativeMenuInputs;
+
+    #[test]
+    fn item_enabled_defaults_to_schema_until_overridden() {
+        let mut inputs = NativeMenuInputs::default();
+        assert!(inputs.item_enabled(Some("ordinary"), None));
+        assert!(!inputs.item_enabled(Some("selection.openImplementation"), Some(false)));
+
+        inputs
+            .enabled
+            .insert("selection.openImplementation".to_string(), true);
+        assert!(inputs.item_enabled(Some("selection.openImplementation"), Some(false)));
+        inputs.enabled.insert("ordinary".to_string(), false);
+        assert!(!inputs.item_enabled(Some("ordinary"), None));
+    }
+
+    #[test]
+    fn enabled_override_survives_other_rebuild_inputs() {
+        let mut inputs = NativeMenuInputs::default();
+        inputs
+            .enabled
+            .insert("selection.openImplementation".to_string(), true);
+        inputs.recent_files = vec!["design/library.fig".to_string()];
+        inputs.features = vec!["cloud".to_string()];
+        assert!(inputs.item_enabled(Some("selection.openImplementation"), Some(false)));
+
+        inputs.features.clear();
+        inputs.recent_files.clear();
+        assert!(inputs.item_enabled(Some("selection.openImplementation"), Some(false)));
+    }
 }

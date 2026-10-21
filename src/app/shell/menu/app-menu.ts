@@ -16,6 +16,8 @@ import IconVariables from '~icons/lucide/variable'
 import IconZoomIn from '~icons/lucide/zoom-in'
 import IconZoomOut from '~icons/lucide/zoom-out'
 
+import { useSceneComputed } from '@open-pencil/vue'
+
 import type { BuiltinIOFormatId } from '@open-pencil/core/io'
 import { shortcutPlatform, useEditorCommands } from '@open-pencil/vue/editor/commands'
 import type { MenuEntry } from '@open-pencil/vue/editor/menu-model'
@@ -28,6 +30,7 @@ import type {
 import { openTour } from '@/app/demo/document'
 import { useEditorStore } from '@/app/editor/active-store'
 import { openVariablesDialog } from '@/app/editor/tokens/dialog'
+import { implementationSelection } from '@/app/integrations/storybook/selection'
 import { openSettingsDialog } from '@/app/settings/dialog'
 import {
   setCommentsOnCanvas,
@@ -97,6 +100,7 @@ function isSeparator(entry: AppMenuEntry): entry is Extract<AppMenuEntry, { type
 
 export function useAppMenu() {
   const store = useEditorStore()
+  const hasImplementationSelection = useSceneComputed(() => !!implementationSelection(store))
   const router = useRouter()
   const {
     commands,
@@ -283,6 +287,8 @@ export function useAppMenu() {
 
   function disabled(item: AppMenuActionItem): boolean | undefined {
     switch (item.id) {
+      case 'selection.openImplementation':
+        return !hasImplementationSelection.value
       case 'view-split-right':
       case 'view-split-down':
         return store.visiblePaneCount.value >= store.panes.maxVisiblePanes
