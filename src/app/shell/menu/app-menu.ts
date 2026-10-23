@@ -16,12 +16,11 @@ import IconVariables from '~icons/lucide/variable'
 import IconZoomIn from '~icons/lucide/zoom-in'
 import IconZoomOut from '~icons/lucide/zoom-out'
 
-import { useSceneComputed } from '@open-pencil/vue'
-
 import type { BuiltinIOFormatId } from '@open-pencil/core/io'
 import { shortcutPlatform, useEditorCommands } from '@open-pencil/vue/editor/commands'
 import type { MenuEntry } from '@open-pencil/vue/editor/menu-model'
 import { useI18n } from '@open-pencil/vue/i18n'
+import { useSceneComputed } from '@open-pencil/vue/internal/scene-computed'
 import type {
   CommandPaletteGroup,
   CommandPaletteItem

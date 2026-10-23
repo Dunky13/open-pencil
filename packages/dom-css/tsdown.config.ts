@@ -5,6 +5,7 @@ export default defineConfig({
     index: './src/index.ts',
     browser: './src/browser.ts',
     export: './src/export/index.ts',
+    'export/storybook/mapping/index': './src/export/storybook/mapping/index.ts',
     'scene-graph': './src/import/scene-graph.ts',
     'jsx-runtime': './src/import/jsx/runtime.ts',
     'jsx-dev-runtime': './src/import/jsx/dev-runtime.ts'
@@ -33,7 +34,8 @@ export default defineConfig({
             const cleanId = id.split('?')[0]
             const parts = cleanId.split(/[\\/]/g)
             const srcIndex = parts.lastIndexOf('src')
-            const file = srcIndex >= 0 ? parts.slice(srcIndex + 1).join('/') : parts.at(-1) ?? 'chunk'
+            const file =
+              srcIndex >= 0 ? parts.slice(srcIndex + 1).join('/') : (parts.at(-1) ?? 'chunk')
             return `chunks/${file.replace(/\.(ts|tsx)$/, '')}`
           }
         }

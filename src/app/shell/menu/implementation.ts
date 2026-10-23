@@ -1,7 +1,7 @@
 import { tryOnScopeDispose } from '@vueuse/core'
 import { watch } from 'vue'
 
-import type { EditorState } from '@open-pencil/core/editor'
+import type { EditorState } from '@open-pencil/core'
 
 import {
   implementationSelection,
