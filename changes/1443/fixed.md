@@ -1,1 +1,1 @@
-- The Harness companion starts Pi sessions with MCP servers on Node.js 26.
+- The Harness companion loads Pi's MCP adapter on Node.js 26 instead of failing on its TypeScript sources.
